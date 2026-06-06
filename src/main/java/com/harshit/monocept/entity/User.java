@@ -1,8 +1,9 @@
 package com.harshit.monocept.entity;
 
+import com.harshit.monocept.enums.Role;
+
 import java.time.LocalDateTime;
 
-import javax.management.relation.Role;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
