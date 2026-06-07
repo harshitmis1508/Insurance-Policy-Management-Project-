@@ -1,17 +1,29 @@
 package com.harshit.monocept.controller;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.harshit.monocept.dto.request.PolicyIssueRequest;
 import com.harshit.monocept.dto.request.PolicyPurchaseRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
 import com.harshit.monocept.dto.response.PolicyResponse;
 import com.harshit.monocept.service.PolicyService;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
-import org.springframework.http.*;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/policies")
@@ -20,7 +32,6 @@ public class PolicyController {
 
 	private final PolicyService policyService;
 
-	// SRS FR-POL-001: Customer policy purchase kare
 	@PostMapping("/purchase")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<PolicyResponse>> purchase(@Valid @RequestBody PolicyPurchaseRequest req,
@@ -29,7 +40,6 @@ public class PolicyController {
 				policyService.purchasePolicy(req, auth.getName())));
 	}
 
-	// SRS FR-POL-002: Agent/Admin issue kare
 	@PostMapping("/issue")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<PolicyResponse>> issue(@Valid @RequestBody PolicyIssueRequest req) {
@@ -37,7 +47,6 @@ public class PolicyController {
 				.body(ApiResponse.success("Policy issued successfully", policyService.issuePolicy(req)));
 	}
 
-	// SRS FR-POL-006: Customer apni policies dekhe
 	@GetMapping("/my")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<Page<PolicyResponse>>> getMyPolicies(@RequestParam(defaultValue = "0") int page,
@@ -52,7 +61,6 @@ public class PolicyController {
 				policyService.getMyPolicies(auth.getName(), PageRequest.of(page, size, sort))));
 	}
 
-	// SRS FR-POL-007: Admin/Agent saari policies
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<Page<PolicyResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
@@ -67,7 +75,6 @@ public class PolicyController {
 				ApiResponse.success("All policies", policyService.getAllPolicies(PageRequest.of(page, size, sort))));
 	}
 
-	// SRS FR-POL-007: Customer ke policies by ID
 	@GetMapping("/customer/{customerId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<Page<PolicyResponse>>> getByCustomer(@PathVariable Long customerId,
@@ -77,14 +84,12 @@ public class PolicyController {
 				.getPoliciesByCustomer(customerId, PageRequest.of(page, size, Sort.by("createdAt").descending()))));
 	}
 
-	// Single policy
 	@GetMapping("/{policyId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT') or hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<PolicyResponse>> getById(@PathVariable Long policyId) {
 		return ResponseEntity.ok(ApiResponse.success("Policy details", policyService.getPolicyById(policyId)));
 	}
 
-	// SRS FR-POL-008: Cancel policy
 	@PatchMapping("/{policyId}/cancel")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<PolicyResponse>> cancel(@PathVariable Long policyId, Authentication auth) {
