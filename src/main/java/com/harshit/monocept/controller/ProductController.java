@@ -31,7 +31,6 @@ public class ProductController {
 
 	private final ProductService productService;
 
-	// SRS FR-PRD-001: Admin only
 	@PostMapping
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<ProductResponse>> create(@Valid @RequestBody ProductRequest req) {
@@ -39,7 +38,6 @@ public class ProductController {
 				.body(ApiResponse.success("Product created", productService.createProduct(req)));
 	}
 
-	// SRS FR-PRD-002
 	@PutMapping("/{id}")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<ProductResponse>> update(@PathVariable Long id,
@@ -47,14 +45,12 @@ public class ProductController {
 		return ResponseEntity.ok(ApiResponse.success("Product updated", productService.updateProduct(id, req)));
 	}
 
-	// SRS FR-PRD-003: Deactivate
 	@PatchMapping("/{id}/deactivate")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<ProductResponse>> deactivate(@PathVariable Long id) {
 		return ResponseEntity.ok(ApiResponse.success("Product deactivated", productService.deactivateProduct(id)));
 	}
 
-	// SRS FR-PRD-004: Public — sabhi users active products dekh sakte hain
 	@GetMapping("/active")
 	public ResponseEntity<ApiResponse<Page<ProductResponse>>> getActive(@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -68,7 +64,6 @@ public class ProductController {
 				productService.getActiveProducts(PageRequest.of(page, size, sort))));
 	}
 
-	// SRS FR-PRD-007: Admin — saare products
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<Page<ProductResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
