@@ -32,8 +32,6 @@ public class CustomerController {
 
 	private final CustomerService customerService;
 
-	// SRS FR-CUS-001: Customer profile banaye
-	// Authentication = Spring Security se current logged-in user
 	@PostMapping("/profile")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<CustomerResponse>> createProfile(@Valid @RequestBody CustomerRequest req,
@@ -42,7 +40,6 @@ public class CustomerController {
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Profile created", res));
 	}
 
-	// SRS FR-CUS-002
 	@PutMapping("/profile")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<CustomerResponse>> updateProfile(@Valid @RequestBody CustomerRequest req,
@@ -51,28 +48,24 @@ public class CustomerController {
 				.ok(ApiResponse.success("Profile updated", customerService.updateProfile(req, auth.getName())));
 	}
 
-	// SRS FR-CUS-003
 	@GetMapping("/profile")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<CustomerResponse>> getMyProfile(Authentication auth) {
 		return ResponseEntity.ok(ApiResponse.success("Profile fetched", customerService.getMyProfile(auth.getName())));
 	}
 
-	// SRS FR-CUS-004: Admin/Agent kisi bhi customer ko dekhe
 	@GetMapping("/{customerId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<CustomerResponse>> getById(@PathVariable Long customerId) {
 		return ResponseEntity.ok(ApiResponse.success("Customer fetched", customerService.getCustomerById(customerId)));
 	}
 
-	// SRS FR-CUS-006: Paginated list - admin/agent only
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<Page<CustomerResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction) {
 
-		// SRS PAGRUL-005: max page size 100
 		if (size > 100)
 			size = 100;
 
