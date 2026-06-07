@@ -51,7 +51,6 @@ public class PolicyPlanController {
 		return ResponseEntity.ok(ApiResponse.success("Plan deactivated", planService.deactivatePlan(id)));
 	}
 
-	// SRS FR-PLN-004: Public — active plans
 	@GetMapping("/active")
 	public ResponseEntity<ApiResponse<Page<PlanResponse>>> getActive(@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
@@ -65,7 +64,6 @@ public class PolicyPlanController {
 				.ok(ApiResponse.success("Active plans", planService.getActivePlans(PageRequest.of(page, size, sort))));
 	}
 
-	// SRS FR-PLN-005: Ek product ke plans
 	@GetMapping("/product/{productId}")
 	public ResponseEntity<ApiResponse<Page<PlanResponse>>> getByProduct(@PathVariable Long productId,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
