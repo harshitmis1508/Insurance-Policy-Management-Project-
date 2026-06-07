@@ -1,17 +1,30 @@
 package com.harshit.monocept.controller;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.harshit.monocept.dto.request.CreateAgentRequest;
 import com.harshit.monocept.dto.request.UserStatusUpdateRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
 import com.harshit.monocept.dto.response.UserResponse;
 import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.service.UserService;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
-import org.springframework.http.*;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/users")
@@ -20,7 +33,6 @@ public class UserController {
 
 	private final UserService userService;
 
-	// SRS FR-USER-001: Admin all users
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(@RequestParam(defaultValue = "0") int page,
@@ -44,14 +56,12 @@ public class UserController {
 		return ResponseEntity.ok(ApiResponse.success("Users fetched", result));
 	}
 
-	// Single user
 	@GetMapping("/{userId}")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<UserResponse>> getById(@PathVariable Long userId) {
 		return ResponseEntity.ok(ApiResponse.success("User fetched", userService.getUserById(userId)));
 	}
 
-	// SRS FR-USER-004: Admin agent banaye
 	@PostMapping("/agent")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<UserResponse>> createAgent(@Valid @RequestBody CreateAgentRequest req) {
@@ -59,7 +69,6 @@ public class UserController {
 				.body(ApiResponse.success("Agent created successfully", userService.createAgent(req)));
 	}
 
-	// SRS FR-USER-002/003: Activate/Deactivate
 	@PatchMapping("/{userId}/status")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<UserResponse>> updateStatus(@PathVariable Long userId,
