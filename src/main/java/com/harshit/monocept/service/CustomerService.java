@@ -1,5 +1,7 @@
 package com.harshit.monocept.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,28 +21,37 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CustomerService {
 
+	// SRS LOG-RUL-003: Sensitive data unnecessarily log nahi
+	private static final Logger log = LoggerFactory.getLogger(CustomerService.class);
+
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
 
-	// SRS FR-CUS-001: Customer apna profile create kare
 	public CustomerResponse createProfile(CustomerRequest req, String email) {
+		log.info("Profile creation attempt for user: {}", email);
 
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		// SRS CUS-BR-002: ek user ka sirf ek profile
-		if (customerRepository.existsByUserId(user.getId()))
+		if (customerRepository.existsByUserId(user.getId())) {
+			// SRS LOG-RUL-005: Business rule violation = warn
+			log.warn("Profile already exists for user: {}", email);
 			throw new BusinessRuleException("Profile already exists for this user");
+		}
 
 		Customer customer = Customer.builder().user(user).dateOfBirth(req.getDateOfBirth()).address(req.getAddress())
 				.city(req.getCity()).state(req.getState()).pinCode(req.getPinCode()).nomineeName(req.getNomineeName())
 				.nomineeRelation(req.getNomineeRelation()).build();
 
-		return mapToResponse(customerRepository.save(customer));
+		Customer saved = customerRepository.save(customer);
+		// SRS LOG-RUL-004: Successful operation = info
+		log.info("Customer profile created: customerId={}, userId={}", saved.getId(), user.getId());
+
+		return mapToResponse(saved);
 	}
 
-	// SRS FR-CUS-002: Customer apna profile update kare
 	public CustomerResponse updateProfile(CustomerRequest req, String email) {
+		log.info("Profile update attempt for user: {}", email);
 
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -48,7 +59,6 @@ public class CustomerService {
 		Customer customer = customerRepository.findByUserId(user.getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Profile not found. Create profile first."));
 
-		// SRS CUS-BR-004: Customer sirf apna profile update kare
 		customer.setDateOfBirth(req.getDateOfBirth());
 		customer.setAddress(req.getAddress());
 		customer.setCity(req.getCity());
@@ -57,11 +67,15 @@ public class CustomerService {
 		customer.setNomineeName(req.getNomineeName());
 		customer.setNomineeRelation(req.getNomineeRelation());
 
-		return mapToResponse(customerRepository.save(customer));
+		Customer updated = customerRepository.save(customer);
+		log.info("Customer profile updated: customerId={}", updated.getId());
+
+		return mapToResponse(updated);
 	}
 
-	// SRS FR-CUS-003: Customer apna profile dekhe
 	public CustomerResponse getMyProfile(String email) {
+		log.debug("Fetching profile for user: {}", email);
+
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -71,19 +85,19 @@ public class CustomerService {
 		return mapToResponse(customer);
 	}
 
-	// SRS FR-CUS-004: Admin/Agent kisi bhi customer ka profile dekhe
 	public CustomerResponse getCustomerById(Long customerId) {
+		log.debug("Fetching customer by id: {}", customerId);
+
 		Customer customer = customerRepository.findById(customerId)
 				.orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
 		return mapToResponse(customer);
 	}
 
-	// SRS FR-CUS-006: Paginated customer listing for admin/agent
 	public Page<CustomerResponse> getAllCustomers(Pageable pageable) {
+		log.debug("Fetching all customers, page: {}", pageable.getPageNumber());
 		return customerRepository.findAll(pageable).map(this::mapToResponse);
 	}
 
-	// Helper: Entity → Response DTO
 	private CustomerResponse mapToResponse(Customer c) {
 		return CustomerResponse.builder().customerId(c.getId()).fullName(c.getUser().getFullName())
 				.email(c.getUser().getEmail()).mobileNumber(c.getUser().getMobileNumber())
