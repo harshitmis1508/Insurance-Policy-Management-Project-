@@ -1,27 +1,46 @@
 package com.harshit.monocept.service;
 
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.harshit.monocept.dto.request.ClaimDecisionRequest;
 import com.harshit.monocept.dto.request.ClaimRequest;
 import com.harshit.monocept.dto.request.ClaimReviewRequest;
 import com.harshit.monocept.dto.response.ClaimHistoryResponse;
 import com.harshit.monocept.dto.response.ClaimResponse;
-import com.harshit.monocept.entity.*;
+import com.harshit.monocept.entity.Claim;
+import com.harshit.monocept.entity.ClaimDocument;
+import com.harshit.monocept.entity.ClaimStatusHistory;
+import com.harshit.monocept.entity.Customer;
+import com.harshit.monocept.entity.Policy;
+import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.ClaimStatus;
 import com.harshit.monocept.enums.PolicyStatus;
-import com.harshit.monocept.exception.*;
-import com.harshit.monocept.repository.*;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import com.harshit.monocept.exception.BusinessRuleException;
+import com.harshit.monocept.exception.ResourceNotFoundException;
+import com.harshit.monocept.repository.ClaimDocumentRepository;
+import com.harshit.monocept.repository.ClaimRepository;
+import com.harshit.monocept.repository.ClaimStatusHistoryRepository;
+import com.harshit.monocept.repository.CustomerRepository;
+import com.harshit.monocept.repository.PolicyRepository;
+import com.harshit.monocept.repository.UserRepository;
 
-import java.util.List;
-import java.util.UUID;
-import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class ClaimService {
+
+	// SRS LOG-009 to LOG-013
+	private static final Logger log = LoggerFactory.getLogger(ClaimService.class);
 
 	private final ClaimRepository claimRepository;
 	private final ClaimDocumentRepository documentRepository;
@@ -29,11 +48,10 @@ public class ClaimService {
 	private final PolicyRepository policyRepository;
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
-	
 
-	// SRS FR-CLM-001: Customer claim submit kare
 	@Transactional
 	public ClaimResponse submitClaim(ClaimRequest req, String email) {
+		log.info("Claim submission attempt: email={}, policyId={}", email, req.getPolicyId());
 
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -44,107 +62,123 @@ public class ClaimService {
 		Policy policy = policyRepository.findById(req.getPolicyId())
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + req.getPolicyId()));
 
-		// SRS CLM-BR-006: Customer sirf apni policy pe claim kare
-		if (!policy.getCustomer().getId().equals(customer.getId()))
+		if (!policy.getCustomer().getId().equals(customer.getId())) {
+			log.warn("Customer {} trying to claim on another customer's policy: {}", email, req.getPolicyId());
 			throw new BusinessRuleException("You can only raise claims for your own policies");
+		}
 
-		// SRS CLM-BR-001/010: Sirf ACTIVE policy pe claim
-		if (policy.getStatus() != PolicyStatus.ACTIVE)
+		if (policy.getStatus() != PolicyStatus.ACTIVE) {
+			// SRS LOG-015: Business rule violation
+			log.warn("Claim on non-ACTIVE policy: policyId={}, status={}", req.getPolicyId(), policy.getStatus());
 			throw new BusinessRuleException(
 					"Claims can only be raised on ACTIVE policies. Current status: " + policy.getStatus());
+		}
 
-		// SRS CLM-BR-004: Claim amount > coverage nahi
-		if (req.getClaimAmount().compareTo(policy.getPlan().getCoverageAmount()) > 0)
+		if (req.getClaimAmount().compareTo(policy.getPlan().getCoverageAmount()) > 0) {
+			log.warn("Claim amount {} exceeds coverage {} for policyId={}", req.getClaimAmount(),
+					policy.getPlan().getCoverageAmount(), req.getPolicyId());
 			throw new BusinessRuleException(
 					"Claim amount cannot exceed policy coverage amount of " + policy.getPlan().getCoverageAmount());
-
-		// SRS CLM-BR-003: amount > 0 (validation mein hai bhi)
+		}
 
 		Claim claim = Claim.builder().claimNumber(generateClaimNumber()).policy(policy)
 				.claimAmount(req.getClaimAmount()).claimReason(req.getClaimReason()).incidentDate(req.getIncidentDate())
-				.claimStatus(ClaimStatus.SUBMITTED) // SRS CLC-RUL-001
-				.build();
+				.claimStatus(ClaimStatus.SUBMITTED).build();
 
 		Claim saved = claimRepository.save(claim);
 
-		// SRS DOC-BR-001: Documents save karo
 		List<ClaimDocument> docs = req.getDocuments().stream()
 				.map(d -> ClaimDocument.builder().claim(saved).documentName(d.getDocumentName())
 						.documentType(d.getDocumentType()).documentReference(d.getDocumentReference()).build())
 				.collect(Collectors.toList());
 		documentRepository.saveAll(docs);
 
-		// SRS HIS-BR-001: History record karo
 		recordHistory(saved, null, ClaimStatus.SUBMITTED, "Claim submitted by customer", user);
+
+		// SRS LOG-009: Claim submission log
+		log.info("Claim submitted: claimNumber={}, policyId={}, amount={}", saved.getClaimNumber(), req.getPolicyId(),
+				req.getClaimAmount());
 
 		return mapToResponse(saved);
 	}
 
-	// SRS FR-CLM-006/007: Agent review + recommend
 	@Transactional
 	public ClaimResponse reviewClaim(Long claimId, ClaimReviewRequest req, String email) {
+		log.info("Claim review attempt: claimId={}, agent={}, status={}", claimId, email, req.getRecommendedStatus());
+
 		User agent = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
 		Claim claim = claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
 
-		// SRS CLM-BR-009: Approved/Rejected modify nahi
 		validateNotFinal(claim.getClaimStatus());
 
-		// SRS CLC-RUL-002/003: Agent valid transitions
 		ClaimStatus allowed = req.getRecommendedStatus();
 		if (allowed != ClaimStatus.UNDER_REVIEW && allowed != ClaimStatus.RECOMMENDED_FOR_APPROVAL
-				&& allowed != ClaimStatus.RECOMMENDED_FOR_REJECTION)
+				&& allowed != ClaimStatus.RECOMMENDED_FOR_REJECTION) {
+			log.warn("Agent {} attempted invalid status: {}", email, allowed);
 			throw new BusinessRuleException(
 					"Agent can only set: UNDER_REVIEW, RECOMMENDED_FOR_APPROVAL, " + "RECOMMENDED_FOR_REJECTION");
+		}
 
-		// CLC-RUL-008: Invalid transition check
-		validateTransition(claim.getClaimStatus(), allowed, "AGENT");
+		validateTransition(claim.getClaimStatus(), allowed);
 
 		ClaimStatus previous = claim.getClaimStatus();
 		claim.setClaimStatus(allowed);
 		claim.setAgentRemarks(req.getRemarks());
 
 		Claim updated = claimRepository.save(claim);
-
-		// SRS HIS-BR-001: History
 		recordHistory(updated, previous, allowed, req.getRemarks(), agent);
+
+		// SRS LOG-010/011: Claim review/recommendation log
+		if (allowed == ClaimStatus.UNDER_REVIEW) {
+			log.info("Claim taken under review: claimId={}, agent={}", claimId, email);
+		} else {
+			log.info("Claim recommendation: claimId={}, status={}, agent={}", claimId, allowed, email);
+		}
 
 		return mapToResponse(updated);
 	}
 
-	// SRS FR-CLM-008: Admin final decision
 	@Transactional
 	public ClaimResponse decideClaim(Long claimId, ClaimDecisionRequest req, String email) {
+		log.info("Claim decision attempt: claimId={}, admin={}, decision={}", claimId, email, req.getFinalStatus());
+
 		User admin = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
 		Claim claim = claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
 
-		// SRS CLM-BR-009: Approved/Rejected modify nahi
 		validateNotFinal(claim.getClaimStatus());
 
-		// SRS CLC-RUL-004: Admin sirf APPROVED/REJECTED set kare
 		ClaimStatus decision = req.getFinalStatus();
-		if (decision != ClaimStatus.APPROVED && decision != ClaimStatus.REJECTED)
+		if (decision != ClaimStatus.APPROVED && decision != ClaimStatus.REJECTED) {
+			log.warn("Admin {} attempted invalid final status: {}", email, decision);
 			throw new BusinessRuleException("Admin can only set: APPROVED or REJECTED");
+		}
 
 		ClaimStatus previous = claim.getClaimStatus();
 		claim.setClaimStatus(decision);
 		claim.setAdminRemarks(req.getRemarks());
 
 		Claim updated = claimRepository.save(claim);
-
-		// SRS HIS-BR-001
 		recordHistory(updated, previous, decision, req.getRemarks(), admin);
+
+		// SRS LOG-012/013: Final approval/rejection
+		if (decision == ClaimStatus.APPROVED) {
+			log.info("Claim APPROVED: claimId={}, claimNumber={}, admin={}", claimId, claim.getClaimNumber(), email);
+		} else {
+			log.info("Claim REJECTED: claimId={}, claimNumber={}, admin={}", claimId, claim.getClaimNumber(), email);
+		}
 
 		return mapToResponse(updated);
 	}
 
-	// SRS FR-CLM-005: Customer apne claims dekhe
 	public Page<ClaimResponse> getMyClaims(String email, Pageable pageable) {
+		log.debug("Fetching claims for: {}", email);
+
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -154,33 +188,30 @@ public class ClaimService {
 		return claimRepository.findByPolicyCustomerId(customer.getId(), pageable).map(this::mapToResponse);
 	}
 
-	// SRS FR-CLM-011: Admin/Agent saare claims
 	public Page<ClaimResponse> getAllClaims(Pageable pageable) {
+		log.debug("Fetching all claims, page: {}", pageable.getPageNumber());
 		return claimRepository.findAll(pageable).map(this::mapToResponse);
 	}
 
-	// Filter by status
 	public Page<ClaimResponse> getClaimsByStatus(ClaimStatus status, Pageable pageable) {
+		log.debug("Fetching claims by status: {}", status);
 		return claimRepository.findByClaimStatus(status, pageable).map(this::mapToResponse);
 	}
 
-	// Single claim
 	public ClaimResponse getClaimById(Long claimId) {
 		return mapToResponse(claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId)));
 	}
 
-	// SRS: Claim history
 	public Page<ClaimHistoryResponse> getClaimHistory(Long claimId, Pageable pageable) {
+		log.debug("Fetching history for claimId: {}", claimId);
+
 		claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
 
 		return historyRepository.findByClaimId(claimId, pageable).map(this::mapHistoryToResponse);
 	}
 
-	// ---- Private Helpers ----
-
-	// SRS CLM-BR-002: Unique claim number
 	private String generateClaimNumber() {
 		String number;
 		do {
@@ -190,15 +221,16 @@ public class ClaimService {
 		return number;
 	}
 
-	// SRS CLM-BR-009: APPROVED/REJECTED ke baad koi change nahi
 	private void validateNotFinal(ClaimStatus status) {
-		if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED)
+		if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED) {
+			// SRS LOG-016: Attempt to modify final claim
+			log.warn("Attempt to modify final claim with status: {}", status);
 			throw new BusinessRuleException(
 					"Cannot modify a claim that is already " + status.name() + ". SRS Rule CLM-BR-009");
+		}
 	}
 
-	// SRS CLC-RUL-008: Invalid state transitions block karo
-	private void validateTransition(ClaimStatus current, ClaimStatus next, String role) {
+	private void validateTransition(ClaimStatus current, ClaimStatus next) {
 		boolean valid = switch (current) {
 		case SUBMITTED -> next == ClaimStatus.UNDER_REVIEW;
 		case UNDER_REVIEW ->
@@ -208,16 +240,18 @@ public class ClaimService {
 		default -> false;
 		};
 
-		if (!valid)
+		if (!valid) {
+			log.warn("Invalid claim transition: {} -> {}", current, next);
 			throw new BusinessRuleException("Invalid claim status transition from " + current + " to " + next);
+		}
 	}
 
-	// SRS HIS-BR-001/002/003: History record — insert only, no update
 	private void recordHistory(Claim claim, ClaimStatus previous, ClaimStatus newStatus, String remarks,
 			User updatedBy) {
 		ClaimStatusHistory history = ClaimStatusHistory.builder().claim(claim).previousStatus(previous)
 				.newStatus(newStatus).remarks(remarks).updatedBy(updatedBy).build();
 		historyRepository.save(history);
+		log.debug("History recorded: claimId={}, {} -> {}", claim.getId(), previous, newStatus);
 	}
 
 	private ClaimResponse mapToResponse(Claim c) {
