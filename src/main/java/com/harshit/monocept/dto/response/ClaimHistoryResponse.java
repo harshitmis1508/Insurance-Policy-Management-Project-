@@ -1,10 +1,15 @@
 package com.harshit.monocept.dto.response;
 
-import com.harshit.monocept.enums.ClaimStatus;
-import lombok.*;
 import java.time.LocalDateTime;
 
-// SRS 9.9: Claim status history
+import com.harshit.monocept.enums.ClaimStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -17,7 +22,7 @@ public class ClaimHistoryResponse {
 	private ClaimStatus previousStatus;
 	private ClaimStatus newStatus;
 	private String remarks;
-	private String updatedByName; // HIS-BR-003: kisne change kiya
+	private String updatedByName;
 	private String updatedByRole;
 	private LocalDateTime updatedAt;
 }
