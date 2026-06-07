@@ -1,56 +1,81 @@
 package com.harshit.monocept.service;
 
-import com.harshit.monocept.dto.request.PolicyIssueRequest;
-import com.harshit.monocept.dto.request.PolicyPurchaseRequest;
-import com.harshit.monocept.dto.response.PolicyResponse;
-import com.harshit.monocept.entity.*;
-import com.harshit.monocept.enums.PolicyStatus;
-import com.harshit.monocept.exception.*;
-import com.harshit.monocept.repository.*;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
+import java.time.LocalDate;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.util.UUID;
+import com.harshit.monocept.dto.request.PolicyIssueRequest;
+import com.harshit.monocept.dto.request.PolicyPurchaseRequest;
+import com.harshit.monocept.dto.response.PolicyResponse;
+import com.harshit.monocept.entity.Customer;
+import com.harshit.monocept.entity.Policy;
+import com.harshit.monocept.entity.PolicyPlan;
+import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.exception.BusinessRuleException;
+import com.harshit.monocept.exception.ResourceNotFoundException;
+import com.harshit.monocept.repository.CustomerRepository;
+import com.harshit.monocept.repository.PolicyPlanRepository;
+import com.harshit.monocept.repository.PolicyRepository;
+import com.harshit.monocept.repository.UserRepository;
+
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
 public class PolicyService {
+
+	// SRS LOG-006/007: Policy purchase/issuance log
+	private static final Logger log = LoggerFactory.getLogger(PolicyService.class);
 
 	private final PolicyRepository policyRepository;
 	private final PolicyPlanRepository planRepository;
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
 
-	// SRS FR-POL-001: Customer apni policy purchase kare
 	@Transactional
 	public PolicyResponse purchasePolicy(PolicyPurchaseRequest req, String email) {
+		log.info("Policy purchase attempt: email={}, planId={}", email, req.getPlanId());
+
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		// SRS CUS-BR-003: Policy se pehle profile hona chahiye
-		Customer customer = customerRepository.findByUserId(user.getId()).orElseThrow(
-				() -> new BusinessRuleException("Please complete your profile before purchasing a policy"));
+		Customer customer = customerRepository.findByUserId(user.getId()).orElseThrow(() -> {
+			log.warn("Policy purchase without profile: email={}", email);
+			return new BusinessRuleException("Please complete your profile before purchasing a policy");
+		});
 
 		PolicyPlan plan = planRepository.findById(req.getPlanId())
 				.orElseThrow(() -> new ResourceNotFoundException("Plan not found with id: " + req.getPlanId()));
 
-		// SRS PLN-BR-005: Sirf active plan purchase ho sakta hai
-		if (!plan.getIsActive())
+		if (!plan.getIsActive()) {
+			log.warn("Purchase attempt on inactive plan: planId={}", req.getPlanId());
 			throw new BusinessRuleException("Cannot purchase an inactive plan");
+		}
 
-		// SRS PRD-BR-002: Product active hona chahiye
-		if (!plan.getProduct().getIsActive())
+		if (!plan.getProduct().getIsActive()) {
+			log.warn("Purchase attempt on inactive product: productId={}", plan.getProduct().getId());
 			throw new BusinessRuleException("Cannot purchase plan of an inactive product");
+		}
 
-		return mapToResponse(policyRepository.save(buildPolicy(customer, plan, req.getStartDate())));
+		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate()));
+
+		// SRS LOG-006: Policy purchase log
+		log.info("Policy purchased: policyNumber={}, customer={}, planId={}", policy.getPolicyNumber(), email,
+				req.getPlanId());
+
+		return mapToResponse(policy);
 	}
 
-	// SRS FR-POL-002: Agent/Admin customer ke liye policy issue kare
 	@Transactional
 	public PolicyResponse issuePolicy(PolicyIssueRequest req) {
+		log.info("Policy issue attempt: customerId={}, planId={}", req.getCustomerId(), req.getPlanId());
 
 		Customer customer = customerRepository.findById(req.getCustomerId())
 				.orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + req.getCustomerId()));
@@ -58,17 +83,28 @@ public class PolicyService {
 		PolicyPlan plan = planRepository.findById(req.getPlanId())
 				.orElseThrow(() -> new ResourceNotFoundException("Plan not found with id: " + req.getPlanId()));
 
-		if (!plan.getIsActive())
+		if (!plan.getIsActive()) {
+			log.warn("Issue attempt on inactive plan: planId={}", req.getPlanId());
 			throw new BusinessRuleException("Cannot issue an inactive plan");
+		}
 
-		if (!plan.getProduct().getIsActive())
+		if (!plan.getProduct().getIsActive()) {
+			log.warn("Issue attempt on inactive product: productId={}", plan.getProduct().getId());
 			throw new BusinessRuleException("Cannot issue plan of an inactive product");
+		}
 
-		return mapToResponse(policyRepository.save(buildPolicy(customer, plan, req.getStartDate())));
+		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate()));
+
+		// SRS LOG-007: Policy issuance log
+		log.info("Policy issued: policyNumber={}, customerId={}, planId={}", policy.getPolicyNumber(),
+				req.getCustomerId(), req.getPlanId());
+
+		return mapToResponse(policy);
 	}
 
-	// SRS FR-POL-006: Customer sirf apni policies dekhe
 	public Page<PolicyResponse> getMyPolicies(String email, Pageable pageable) {
+		log.debug("Fetching policies for: {}", email);
+
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -78,54 +114,58 @@ public class PolicyService {
 		return policyRepository.findByCustomerId(customer.getId(), pageable).map(this::mapToResponse);
 	}
 
-	// SRS FR-POL-007: Admin/Agent saari policies dekhe
 	public Page<PolicyResponse> getAllPolicies(Pageable pageable) {
+		log.debug("Fetching all policies, page: {}", pageable.getPageNumber());
 		return policyRepository.findAll(pageable).map(this::mapToResponse);
 	}
 
-	// SRS FR-POL-007: Customer ke policies by customerId
 	public Page<PolicyResponse> getPoliciesByCustomer(Long customerId, Pageable pageable) {
+		log.debug("Fetching policies for customerId: {}", customerId);
+
 		customerRepository.findById(customerId)
 				.orElseThrow(() -> new ResourceNotFoundException("Customer not found with id: " + customerId));
 
 		return policyRepository.findByCustomerId(customerId, pageable).map(this::mapToResponse);
 	}
 
-	// SRS FR-POL-008: Admin/Agent policy cancel kare
 	@Transactional
 	public PolicyResponse cancelPolicy(Long policyId, String email) {
+		log.info("Policy cancel attempt: policyId={}, by={}", policyId, email);
 
 		Policy policy = policyRepository.findById(policyId)
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + policyId));
 
-		// SRS PLC-RUL-007: Cancelled policy reactivate nahi hoti
-		if (policy.getStatus() == PolicyStatus.CANCELLED)
+		if (policy.getStatus() == PolicyStatus.CANCELLED) {
+			log.warn("Already cancelled policy: policyId={}", policyId);
 			throw new BusinessRuleException("Policy is already cancelled");
+		}
 
-		if (policy.getStatus() == PolicyStatus.EXPIRED)
+		if (policy.getStatus() == PolicyStatus.EXPIRED) {
+			log.warn("Cancel attempt on expired policy: policyId={}", policyId);
 			throw new BusinessRuleException("Expired policy cannot be cancelled");
+		}
 
 		policy.setStatus(PolicyStatus.CANCELLED);
-		return mapToResponse(policyRepository.save(policy));
+		Policy saved = policyRepository.save(policy);
+		log.info("Policy cancelled: policyNumber={}", saved.getPolicyNumber());
+
+		return mapToResponse(saved);
 	}
 
-	// SRS FR-POL-010: Expired check
 	public PolicyResponse getPolicyById(Long policyId) {
 		Policy policy = policyRepository.findById(policyId)
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + policyId));
 
-		// Auto expire check
+		// SRS FR-POL-010: Auto expire check
 		if (policy.getStatus() == PolicyStatus.ACTIVE && policy.getEndDate().isBefore(LocalDate.now())) {
 			policy.setStatus(PolicyStatus.EXPIRED);
 			policyRepository.save(policy);
+			log.info("Policy auto-expired: policyNumber={}", policy.getPolicyNumber());
 		}
 
 		return mapToResponse(policy);
 	}
 
-	// ---- Private Helpers ----
-
-	// SRS POL-BR-003: Unique policy number generate
 	private String generatePolicyNumber() {
 		String number;
 		do {
@@ -136,12 +176,8 @@ public class PolicyService {
 	}
 
 	private Policy buildPolicy(Customer customer, PolicyPlan plan, LocalDate startDate) {
-		// SRS POL-BR-001/002/003/004
 		return Policy.builder().policyNumber(generatePolicyNumber()).customer(customer).plan(plan).startDate(startDate)
-				// SRS: end date = start + duration years
-				.endDate(startDate.plusYears(plan.getDurationYears())).status(PolicyStatus.PENDING_PAYMENT) // SRS
-																											// PLC-RUL-001
-				.build();
+				.endDate(startDate.plusYears(plan.getDurationYears())).status(PolicyStatus.PENDING_PAYMENT).build();
 	}
 
 	public PolicyResponse mapToResponse(Policy p) {
