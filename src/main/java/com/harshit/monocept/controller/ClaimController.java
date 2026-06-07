@@ -1,5 +1,22 @@
 package com.harshit.monocept.controller;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.harshit.monocept.dto.request.ClaimDecisionRequest;
 import com.harshit.monocept.dto.request.ClaimRequest;
 import com.harshit.monocept.dto.request.ClaimReviewRequest;
@@ -8,13 +25,9 @@ import com.harshit.monocept.dto.response.ClaimHistoryResponse;
 import com.harshit.monocept.dto.response.ClaimResponse;
 import com.harshit.monocept.enums.ClaimStatus;
 import com.harshit.monocept.service.ClaimService;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
-import org.springframework.http.*;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/claims")
@@ -23,7 +36,6 @@ public class ClaimController {
 
 	private final ClaimService claimService;
 
-	// SRS FR-CLM-001: Customer claim submit kare
 	@PostMapping
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<ClaimResponse>> submit(@Valid @RequestBody ClaimRequest req,
@@ -32,7 +44,6 @@ public class ClaimController {
 				ApiResponse.success("Claim submitted successfully", claimService.submitClaim(req, auth.getName())));
 	}
 
-	// SRS FR-CLM-005: Customer apne claims
 	@GetMapping("/my")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<Page<ClaimResponse>>> getMyClaims(@RequestParam(defaultValue = "0") int page,
@@ -47,7 +58,6 @@ public class ClaimController {
 				claimService.getMyClaims(auth.getName(), PageRequest.of(page, size, sort))));
 	}
 
-	// SRS FR-CLM-011: Admin/Agent saare claims
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<Page<ClaimResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
@@ -66,14 +76,12 @@ public class ClaimController {
 		return ResponseEntity.ok(ApiResponse.success("Claims", result));
 	}
 
-	// Single claim
 	@GetMapping("/{claimId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT') or hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<ClaimResponse>> getById(@PathVariable Long claimId) {
 		return ResponseEntity.ok(ApiResponse.success("Claim details", claimService.getClaimById(claimId)));
 	}
 
-	// SRS FR-CLM-006/007: Agent review
 	@PatchMapping("/{claimId}/review")
 	@PreAuthorize("hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<ClaimResponse>> review(@PathVariable Long claimId,
@@ -82,7 +90,6 @@ public class ClaimController {
 				.ok(ApiResponse.success("Claim reviewed", claimService.reviewClaim(claimId, req, auth.getName())));
 	}
 
-	// SRS FR-CLM-008: Admin final decision
 	@PatchMapping("/{claimId}/decide")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<ClaimResponse>> decide(@PathVariable Long claimId,
@@ -91,7 +98,6 @@ public class ClaimController {
 				ApiResponse.success("Claim decision recorded", claimService.decideClaim(claimId, req, auth.getName())));
 	}
 
-	// SRS FR-CLM-010: Claim history
 	@GetMapping("/{claimId}/history")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT') or hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<Page<ClaimHistoryResponse>>> getHistory(@PathVariable Long claimId,
