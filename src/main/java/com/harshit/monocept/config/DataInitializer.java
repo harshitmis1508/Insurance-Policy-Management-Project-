@@ -1,18 +1,17 @@
 package com.harshit.monocept.config;
 
-import com.harshit.monocept.entity.User;
-import com.harshit.monocept.enums.Role;
-import com.harshit.monocept.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-// CommandLineRunner = Application start hone ke baad
-// automatically run hota hai
-// SRS USR-BR-004: Admin account internally managed
+import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.Role;
+import com.harshit.monocept.repository.UserRepository;
+
+import lombok.RequiredArgsConstructor;
+
 @Component
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
@@ -29,15 +28,11 @@ public class DataInitializer implements CommandLineRunner {
 
 	private void createAdminIfNotExists() {
 
-		// Agar admin already hai toh kuch mat karo
 		if (userRepository.existsByEmail("admin@insurance.com")) {
 			log.info("Admin already exists — skipping creation");
 			return;
 		}
 
-		// Admin nahi hai — banao
-		// BCryptPasswordEncoder se password encode hoga
-		// Yahi CORRECT hash hoga — koi mismatch nahi
 		User admin = User.builder().fullName("Admin User").email("admin@insurance.com")
 				.password(passwordEncoder.encode("password123")).mobileNumber("9999999999").role(Role.ADMIN)
 				.isActive(true).build();
