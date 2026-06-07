@@ -1,5 +1,7 @@
 package com.harshit.monocept.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -19,22 +21,27 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PolicyPlanService {
 
+	// SRS LOG-005: Plan creation/update log karo
+	private static final Logger log = LoggerFactory.getLogger(PolicyPlanService.class);
+
 	private final PolicyPlanRepository planRepository;
 	private final ProductRepository productRepository;
 
-	// SRS FR-PLN-001
 	public PlanResponse createPlan(PlanRequest req) {
+		log.info("Plan creation attempt: name={}, productId={}", req.getPlanName(), req.getProductId());
 
 		InsuranceProduct product = productRepository.findById(req.getProductId())
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + req.getProductId()));
 
-		// SRS PRD-BR-002: inactive product pe plan nahi bana sakte
-		if (!product.getIsActive())
+		if (!product.getIsActive()) {
+			log.warn("Plan creation on inactive product: productId={}", req.getProductId());
 			throw new BusinessRuleException("Cannot create plan for inactive product");
+		}
 
-		// SRS PLN-BR-004: coverage > premium
-		if (req.getCoverageAmount().compareTo(req.getPremiumAmount()) <= 0)
+		if (req.getCoverageAmount().compareTo(req.getPremiumAmount()) <= 0) {
+			log.warn("Coverage <= Premium: coverage={}, premium={}", req.getCoverageAmount(), req.getPremiumAmount());
 			throw new BusinessRuleException("Coverage amount must be greater than premium amount");
+		}
 
 		PolicyPlan plan = PolicyPlan.builder().product(product).planName(req.getPlanName())
 				.coverageAmount(req.getCoverageAmount()).premiumAmount(req.getPremiumAmount())
@@ -42,11 +49,15 @@ public class PolicyPlanService {
 				.termsAndConditions(req.getTermsAndConditions())
 				.isActive(req.getIsActive() != null ? req.getIsActive() : true).build();
 
-		return mapToResponse(planRepository.save(plan));
+		PolicyPlan saved = planRepository.save(plan);
+		// SRS LOG-005
+		log.info("Plan created: id={}, name={}, productId={}", saved.getId(), saved.getPlanName(), product.getId());
+
+		return mapToResponse(saved);
 	}
 
-	// SRS FR-PLN-002
 	public PlanResponse updatePlan(Long id, PlanRequest req) {
+		log.info("Plan update attempt: id={}", id);
 
 		PolicyPlan plan = planRepository.findById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Plan not found with id: " + id));
@@ -54,12 +65,16 @@ public class PolicyPlanService {
 		InsuranceProduct product = productRepository.findById(req.getProductId())
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-		if (!product.getIsActive())
+		if (!product.getIsActive()) {
+			log.warn("Plan update on inactive product: productId={}", req.getProductId());
 			throw new BusinessRuleException("Cannot link plan to inactive product");
+		}
 
-		// SRS PLN-BR-004
-		if (req.getCoverageAmount().compareTo(req.getPremiumAmount()) <= 0)
+		if (req.getCoverageAmount().compareTo(req.getPremiumAmount()) <= 0) {
+			log.warn("Coverage <= Premium on update: coverage={}, premium={}", req.getCoverageAmount(),
+					req.getPremiumAmount());
 			throw new BusinessRuleException("Coverage amount must be greater than premium amount");
+		}
 
 		plan.setProduct(product);
 		plan.setPlanName(req.getPlanName());
@@ -71,29 +86,39 @@ public class PolicyPlanService {
 		if (req.getIsActive() != null)
 			plan.setIsActive(req.getIsActive());
 
-		return mapToResponse(planRepository.save(plan));
+		PolicyPlan updated = planRepository.save(plan);
+		// SRS LOG-005
+		log.info("Plan updated: id={}, name={}", updated.getId(), updated.getPlanName());
+
+		return mapToResponse(updated);
 	}
 
-	// SRS FR-PLN-003: Deactivate — hard delete nahi (PLN-BR-006)
 	public PlanResponse deactivatePlan(Long id) {
+		log.info("Plan deactivation attempt: id={}", id);
+
 		PolicyPlan plan = planRepository.findById(id)
 				.orElseThrow(() -> new ResourceNotFoundException("Plan not found with id: " + id));
 
-		if (!plan.getIsActive())
+		if (!plan.getIsActive()) {
+			log.warn("Plan already inactive: id={}", id);
 			throw new BusinessRuleException("Plan is already inactive");
+		}
 
 		plan.setIsActive(false);
-		return mapToResponse(planRepository.save(plan));
+		PolicyPlan saved = planRepository.save(plan);
+		log.info("Plan deactivated: id={}, name={}", saved.getId(), saved.getPlanName());
+
+		return mapToResponse(saved);
 	}
 
-	// SRS FR-PLN-004: Sabhi active plans
 	public Page<PlanResponse> getActivePlans(Pageable pageable) {
+		log.debug("Fetching active plans, page: {}", pageable.getPageNumber());
 		return planRepository.findByIsActiveTrue(pageable).map(this::mapToResponse);
 	}
 
-	// SRS FR-PLN-005: Ek product ke active plans
 	public Page<PlanResponse> getPlansByProduct(Long productId, Pageable pageable) {
-		// product exist karta hai?
+		log.debug("Fetching plans for productId: {}", productId);
+
 		productRepository.findById(productId)
 				.orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
 
