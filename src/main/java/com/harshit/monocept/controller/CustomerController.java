@@ -36,7 +36,7 @@ public class CustomerController {
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<CustomerResponse>> createProfile(@Valid @RequestBody CustomerRequest req,
 			Authentication auth) {
-		CustomerResponse res = customerService.createProfile(req, auth.getName()); // auth.getName() = email from JWT
+		CustomerResponse res = customerService.createProfile(req, auth.getName());
 		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Profile created", res));
 	}
 

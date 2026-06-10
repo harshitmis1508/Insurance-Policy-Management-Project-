@@ -1,12 +1,17 @@
 package com.harshit.monocept.dto.response;
 
-import com.harshit.monocept.enums.ClaimStatus;
-import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.harshit.monocept.enums.ClaimStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -17,8 +22,8 @@ public class ClaimResponse {
 	private Long claimId;
 	private String claimNumber;
 	private Long policyId;
-	private String policyNumber; 
-	private String customerName; 
+	private String policyNumber;
+	private String customerName;
 	private BigDecimal claimAmount;
 	private String claimReason;
 	private LocalDate incidentDate;

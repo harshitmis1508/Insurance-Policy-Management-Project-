@@ -1,9 +1,14 @@
 package com.harshit.monocept.dto.response;
 
-import com.harshit.monocept.enums.Role;
-import lombok.*;
 import java.time.LocalDateTime;
 
+import com.harshit.monocept.enums.Role;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -19,5 +24,4 @@ public class UserResponse {
 	private Boolean isActive;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
-	
 }

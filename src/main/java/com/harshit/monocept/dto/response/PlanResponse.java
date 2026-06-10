@@ -12,7 +12,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,7 +21,7 @@ public class PlanResponse {
 	private Long planId;
 	private Long productId;
 	private String productName;
-	private ProductType productType; 
+	private ProductType productType;
 	private String planName;
 	private BigDecimal coverageAmount;
 	private BigDecimal premiumAmount;

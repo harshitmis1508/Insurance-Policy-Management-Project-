@@ -31,7 +31,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PolicyService {
 
-
 	private static final Logger log = LoggerFactory.getLogger(PolicyService.class);
 
 	private final PolicyRepository policyRepository;
@@ -66,7 +65,7 @@ public class PolicyService {
 
 		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate()));
 
-		
+		// SRS LOG-006: Policy purchase log
 		log.info("Policy purchased: policyNumber={}, customer={}, planId={}", policy.getPolicyNumber(), email,
 				req.getPlanId());
 
@@ -95,7 +94,7 @@ public class PolicyService {
 
 		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate()));
 
-		
+		// SRS LOG-007: Policy issuance log
 		log.info("Policy issued: policyNumber={}, customerId={}, planId={}", policy.getPolicyNumber(),
 				req.getCustomerId(), req.getPlanId());
 
@@ -156,7 +155,7 @@ public class PolicyService {
 		Policy policy = policyRepository.findById(policyId)
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + policyId));
 
-		
+		// SRS FR-POL-010: Auto expire check
 		if (policy.getStatus() == PolicyStatus.ACTIVE && policy.getEndDate().isBefore(LocalDate.now())) {
 			policy.setStatus(PolicyStatus.EXPIRED);
 			policyRepository.save(policy);

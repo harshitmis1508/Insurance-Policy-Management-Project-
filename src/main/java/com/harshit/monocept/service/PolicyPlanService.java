@@ -21,7 +21,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PolicyPlanService {
 
-	
 	private static final Logger log = LoggerFactory.getLogger(PolicyPlanService.class);
 
 	private final PolicyPlanRepository planRepository;
@@ -50,7 +49,7 @@ public class PolicyPlanService {
 				.isActive(req.getIsActive() != null ? req.getIsActive() : true).build();
 
 		PolicyPlan saved = planRepository.save(plan);
-		
+		// SRS LOG-005
 		log.info("Plan created: id={}, name={}, productId={}", saved.getId(), saved.getPlanName(), product.getId());
 
 		return mapToResponse(saved);
@@ -87,7 +86,7 @@ public class PolicyPlanService {
 			plan.setIsActive(req.getIsActive());
 
 		PolicyPlan updated = planRepository.save(plan);
-		
+		// SRS LOG-005
 		log.info("Plan updated: id={}, name={}", updated.getId(), updated.getPlanName());
 
 		return mapToResponse(updated);

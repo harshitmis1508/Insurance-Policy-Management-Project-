@@ -29,7 +29,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PaymentService {
 
-	
 	private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
 	private final PaymentRepository paymentRepository;
@@ -52,7 +51,6 @@ public class PaymentService {
 				.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
 
 		if (!policy.getCustomer().getId().equals(customer.getId())) {
-			
 			log.warn("Customer {} trying to pay for another customer's policy: {}", email, req.getPolicyId());
 			throw new BusinessRuleException("You can only make payments for your own policies");
 		}
@@ -111,6 +109,9 @@ public class PaymentService {
 			throw new DuplicateResourceException(
 					"Transaction reference already exists: " + req.getTransactionReference());
 		}
+		if (req.getAmount().compareTo(policy.getPlan().getPremiumAmount()) != 0) {
+			throw new BusinessRuleException("Payment amount must match premium amount");
+		}
 
 		if (policy.getStatus() == PolicyStatus.CANCELLED) {
 			log.warn("Payment on cancelled policy: policyId={}", policy.getId());
@@ -128,11 +129,9 @@ public class PaymentService {
 
 		PremiumPayment saved = paymentRepository.save(payment);
 
-		
 		log.info("Payment recorded: txRef={}, status={}, policyId={}, amount={}", req.getTransactionReference(),
 				req.getPaymentStatus(), policy.getId(), req.getAmount());
 
-		
 		if (req.getPaymentStatus() == PaymentStatus.SUCCESS) {
 			policy.setTotalPremiumPaid(policy.getTotalPremiumPaid().add(req.getAmount()));
 
@@ -145,7 +144,6 @@ public class PaymentService {
 				policyRepository.save(policy);
 			}
 		} else {
-			
 			log.warn("Payment {} for policyId={}: policy remains {}", req.getPaymentStatus(), policy.getId(),
 					policy.getStatus());
 		}
