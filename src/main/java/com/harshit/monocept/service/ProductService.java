@@ -20,7 +20,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ProductService {
 
-	// SRS LOG-004: Product creation/update log karo
 	private static final Logger log = LoggerFactory.getLogger(ProductService.class);
 
 	private final ProductRepository productRepository;
@@ -38,7 +37,6 @@ public class ProductService {
 				.isActive(req.getIsActive() != null ? req.getIsActive() : true).build();
 
 		InsuranceProduct saved = productRepository.save(product);
-		// SRS LOG-004
 		log.info("Product created: id={}, name={}", saved.getId(), saved.getProductName());
 
 		return mapToResponse(saved);
@@ -63,7 +61,6 @@ public class ProductService {
 			product.setIsActive(req.getIsActive());
 
 		InsuranceProduct updated = productRepository.save(product);
-		// SRS LOG-004
 		log.info("Product updated: id={}, name={}", updated.getId(), updated.getProductName());
 
 		return mapToResponse(updated);

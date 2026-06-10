@@ -39,7 +39,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClaimService {
 
-	// SRS LOG-009 to LOG-013
 	private static final Logger log = LoggerFactory.getLogger(ClaimService.class);
 
 	private final ClaimRepository claimRepository;
@@ -68,7 +67,6 @@ public class ClaimService {
 		}
 
 		if (policy.getStatus() != PolicyStatus.ACTIVE) {
-			// SRS LOG-015: Business rule violation
 			log.warn("Claim on non-ACTIVE policy: policyId={}, status={}", req.getPolicyId(), policy.getStatus());
 			throw new BusinessRuleException(
 					"Claims can only be raised on ACTIVE policies. Current status: " + policy.getStatus());
@@ -95,7 +93,6 @@ public class ClaimService {
 
 		recordHistory(saved, null, ClaimStatus.SUBMITTED, "Claim submitted by customer", user);
 
-		// SRS LOG-009: Claim submission log
 		log.info("Claim submitted: claimNumber={}, policyId={}, amount={}", saved.getClaimNumber(), req.getPolicyId(),
 				req.getClaimAmount());
 
@@ -131,7 +128,6 @@ public class ClaimService {
 		Claim updated = claimRepository.save(claim);
 		recordHistory(updated, previous, allowed, req.getRemarks(), agent);
 
-		// SRS LOG-010/011: Claim review/recommendation log
 		if (allowed == ClaimStatus.UNDER_REVIEW) {
 			log.info("Claim taken under review: claimId={}, agent={}", claimId, email);
 		} else {
@@ -166,7 +162,6 @@ public class ClaimService {
 		Claim updated = claimRepository.save(claim);
 		recordHistory(updated, previous, decision, req.getRemarks(), admin);
 
-		// SRS LOG-012/013: Final approval/rejection
 		if (decision == ClaimStatus.APPROVED) {
 			log.info("Claim APPROVED: claimId={}, claimNumber={}, admin={}", claimId, claim.getClaimNumber(), email);
 		} else {
@@ -223,10 +218,9 @@ public class ClaimService {
 
 	private void validateNotFinal(ClaimStatus status) {
 		if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED) {
-			// SRS LOG-016: Attempt to modify final claim
 			log.warn("Attempt to modify final claim with status: {}", status);
 			throw new BusinessRuleException(
-					"Cannot modify a claim that is already " + status.name() + ". SRS Rule CLM-BR-009");
+					"Cannot modify a claim that is already " + status.name());
 		}
 	}
 

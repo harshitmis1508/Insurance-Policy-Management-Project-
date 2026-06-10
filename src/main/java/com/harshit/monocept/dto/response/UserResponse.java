@@ -1,10 +1,15 @@
 package com.harshit.monocept.dto.response;
 
-import com.harshit.monocept.enums.Role;
-import lombok.*;
 import java.time.LocalDateTime;
 
-// SRS 11.3: User response fields
+import com.harshit.monocept.enums.Role;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,5 +24,4 @@ public class UserResponse {
 	private Boolean isActive;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
-	// NOTE: password field intentionally nahi hai — SRS DTO-RUL-005
 }

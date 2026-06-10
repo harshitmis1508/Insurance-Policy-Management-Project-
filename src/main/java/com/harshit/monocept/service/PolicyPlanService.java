@@ -21,7 +21,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PolicyPlanService {
 
-	// SRS LOG-005: Plan creation/update log karo
 	private static final Logger log = LoggerFactory.getLogger(PolicyPlanService.class);
 
 	private final PolicyPlanRepository planRepository;

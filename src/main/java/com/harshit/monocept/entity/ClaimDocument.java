@@ -41,8 +41,25 @@ public class ClaimDocument {
 	@Column(nullable = false)
 	private String documentType;
 
+	// SRS DOC-BR-003: Ab actual Cloudinary URL store hogi
 	@Column(nullable = false)
-	private String documentReference;
+	private String documentReference; // Cloudinary URL
+
+	// Cloudinary public ID — delete ke liye zaroori
+	@Column
+	private String cloudinaryPublicId;
+
+	// File ka original naam
+	@Column
+	private String originalFileName;
+
+	// File size bytes mein
+	@Column
+	private Long fileSizeBytes;
+
+	// File format — pdf, jpg etc
+	@Column
+	private String fileFormat;
 
 	private LocalDateTime uploadedAt;
 

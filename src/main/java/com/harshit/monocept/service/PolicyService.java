@@ -31,7 +31,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PolicyService {
 
-	// SRS LOG-006/007: Policy purchase/issuance log
 	private static final Logger log = LoggerFactory.getLogger(PolicyService.class);
 
 	private final PolicyRepository policyRepository;

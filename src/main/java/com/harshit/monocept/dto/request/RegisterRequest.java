@@ -1,7 +1,13 @@
 package com.harshit.monocept.dto.request;
 
-import jakarta.validation.constraints.*;
-import lombok.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @Setter
@@ -20,5 +26,7 @@ public class RegisterRequest {
 	private String password;
 
 	@NotBlank(message = "Mobile number is required")
+	@Size(min = 10, max = 10, message = "Mobile number must be 10 digits")
+	@Pattern(regexp = "^[6-9]\\d{9}$", message = "Invalid mobile number")
 	private String mobileNumber;
 }
