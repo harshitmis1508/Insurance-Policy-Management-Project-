@@ -29,7 +29,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PaymentService {
 
-	// SRS LOG-008: Payment record log
+	
 	private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
 	private final PaymentRepository paymentRepository;
@@ -52,7 +52,7 @@ public class PaymentService {
 				.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
 
 		if (!policy.getCustomer().getId().equals(customer.getId())) {
-			// SRS LOG-RUL-005: Business rule violation = warn
+			
 			log.warn("Customer {} trying to pay for another customer's policy: {}", email, req.getPolicyId());
 			throw new BusinessRuleException("You can only make payments for your own policies");
 		}
@@ -128,11 +128,11 @@ public class PaymentService {
 
 		PremiumPayment saved = paymentRepository.save(payment);
 
-		// SRS LOG-008: Payment record log
+		
 		log.info("Payment recorded: txRef={}, status={}, policyId={}, amount={}", req.getTransactionReference(),
 				req.getPaymentStatus(), policy.getId(), req.getAmount());
 
-		// SRS PAY-BR-004/007: SUCCESS = activate policy
+		
 		if (req.getPaymentStatus() == PaymentStatus.SUCCESS) {
 			policy.setTotalPremiumPaid(policy.getTotalPremiumPaid().add(req.getAmount()));
 
@@ -145,7 +145,7 @@ public class PaymentService {
 				policyRepository.save(policy);
 			}
 		} else {
-			// SRS LOG-RUL-005: Failed/pending = warn
+			
 			log.warn("Payment {} for policyId={}: policy remains {}", req.getPaymentStatus(), policy.getId(),
 					policy.getStatus());
 		}

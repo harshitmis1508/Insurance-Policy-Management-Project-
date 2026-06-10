@@ -20,5 +20,7 @@ public class RegisterRequest {
 	private String password;
 
 	@NotBlank(message = "Mobile number is required")
+	@Size(min = 10, max = 10, message = "Mobile number must be 10 digits")
+	@Pattern(regexp = "^[6-9]\\d{9}$", message = "Invalid mobile number")
 	private String mobileNumber;
 }

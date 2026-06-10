@@ -25,12 +25,12 @@ public class PlanRequest {
 	@NotBlank(message = "Plan name is required")
 	private String planName;
 
-	// SRS PLN-BR-002: coverage > 0
+	
 	@NotNull(message = "Coverage amount is required")
 	@DecimalMin(value = "0.01", message = "Coverage amount must be greater than 0")
 	private BigDecimal coverageAmount;
 
-	// SRS PLN-BR-003: premium > 0
+	
 	@NotNull(message = "Premium amount is required")
 	@DecimalMin(value = "0.01", message = "Premium amount must be greater than 0")
 	private BigDecimal premiumAmount;
@@ -38,7 +38,7 @@ public class PlanRequest {
 	@NotNull(message = "Premium type is required")
 	private PremiumType premiumType;
 
-	// SRS PLN duration > 0
+	
 	@NotNull(message = "Duration is required")
 	@Min(value = 1, message = "Duration must be at least 1 year")
 	private Integer durationYears;

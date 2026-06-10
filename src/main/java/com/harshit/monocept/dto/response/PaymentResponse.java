@@ -6,7 +6,7 @@ import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-// SRS 11.8: Payment response fields
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 public class PaymentResponse {
 	private Long paymentId;
 	private Long policyId;
-	private String policyNumber; // SRS 11.8
+	private String policyNumber; 
 	private BigDecimal amount;
 	private LocalDateTime paymentDate;
 	private PaymentMode paymentMode;

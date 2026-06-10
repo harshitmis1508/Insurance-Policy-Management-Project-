@@ -7,7 +7,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-// SRS 11.9: Claim response fields
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -17,8 +17,8 @@ public class ClaimResponse {
 	private Long claimId;
 	private String claimNumber;
 	private Long policyId;
-	private String policyNumber; // SRS 11.9
-	private String customerName; // SRS 11.9
+	private String policyNumber; 
+	private String customerName; 
 	private BigDecimal claimAmount;
 	private String claimReason;
 	private LocalDate incidentDate;

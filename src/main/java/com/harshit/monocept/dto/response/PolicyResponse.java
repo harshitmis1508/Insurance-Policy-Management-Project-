@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-// SRS 11.7: Policy response fields
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -18,13 +18,13 @@ public class PolicyResponse {
 	private Long policyId;
 	private String policyNumber;
 	private Long customerId;
-	private String customerName; // SRS 11.7
+	private String customerName; 
 	private Long planId;
-	private String planName; // SRS 11.7
-	private ProductType productType; // SRS 11.7
-	private BigDecimal coverageAmount; // SRS 11.7
-	private BigDecimal premiumAmount; // SRS 11.7
-	private PremiumType premiumType; // SRS 11.7
+	private String planName; 
+	private ProductType productType; 
+	private BigDecimal coverageAmount; 
+	private BigDecimal premiumAmount; 
+	private PremiumType premiumType; 
 	private LocalDate startDate;
 	private LocalDate endDate;
 	private PolicyStatus status;

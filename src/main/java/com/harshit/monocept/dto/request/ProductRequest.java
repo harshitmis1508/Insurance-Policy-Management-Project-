@@ -16,7 +16,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class ProductRequest {
 
-	// SRS PRD-BR-001: product name unique + required
+	
 	@NotBlank(message = "Product name is required")
 	private String productName;
 

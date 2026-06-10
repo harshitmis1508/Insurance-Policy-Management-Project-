@@ -1,5 +1,7 @@
 package com.harshit.monocept.service;
 
+import org.springframework.web.multipart.MultipartFile;
+
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,7 +41,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClaimService {
 
-	// SRS LOG-009 to LOG-013
 	private static final Logger log = LoggerFactory.getLogger(ClaimService.class);
 
 	private final ClaimRepository claimRepository;
@@ -68,7 +69,7 @@ public class ClaimService {
 		}
 
 		if (policy.getStatus() != PolicyStatus.ACTIVE) {
-			// SRS LOG-015: Business rule violation
+
 			log.warn("Claim on non-ACTIVE policy: policyId={}, status={}", req.getPolicyId(), policy.getStatus());
 			throw new BusinessRuleException(
 					"Claims can only be raised on ACTIVE policies. Current status: " + policy.getStatus());
@@ -95,7 +96,6 @@ public class ClaimService {
 
 		recordHistory(saved, null, ClaimStatus.SUBMITTED, "Claim submitted by customer", user);
 
-		// SRS LOG-009: Claim submission log
 		log.info("Claim submitted: claimNumber={}, policyId={}, amount={}", saved.getClaimNumber(), req.getPolicyId(),
 				req.getClaimAmount());
 
@@ -131,7 +131,6 @@ public class ClaimService {
 		Claim updated = claimRepository.save(claim);
 		recordHistory(updated, previous, allowed, req.getRemarks(), agent);
 
-		// SRS LOG-010/011: Claim review/recommendation log
 		if (allowed == ClaimStatus.UNDER_REVIEW) {
 			log.info("Claim taken under review: claimId={}, agent={}", claimId, email);
 		} else {
@@ -166,7 +165,6 @@ public class ClaimService {
 		Claim updated = claimRepository.save(claim);
 		recordHistory(updated, previous, decision, req.getRemarks(), admin);
 
-		// SRS LOG-012/013: Final approval/rejection
 		if (decision == ClaimStatus.APPROVED) {
 			log.info("Claim APPROVED: claimId={}, claimNumber={}, admin={}", claimId, claim.getClaimNumber(), email);
 		} else {
@@ -223,10 +221,9 @@ public class ClaimService {
 
 	private void validateNotFinal(ClaimStatus status) {
 		if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED) {
-			// SRS LOG-016: Attempt to modify final claim
+
 			log.warn("Attempt to modify final claim with status: {}", status);
-			throw new BusinessRuleException(
-					"Cannot modify a claim that is already " + status.name() + ". SRS Rule CLM-BR-009");
+			throw new BusinessRuleException("Cannot modify a claim that is already " + status.name());
 		}
 	}
 
@@ -276,5 +273,36 @@ public class ClaimService {
 				.claimNumber(h.getClaim().getClaimNumber()).previousStatus(h.getPreviousStatus())
 				.newStatus(h.getNewStatus()).remarks(h.getRemarks()).updatedByName(h.getUpdatedBy().getFullName())
 				.updatedByRole(h.getUpdatedBy().getRole().name()).updatedAt(h.getUpdatedAt()).build();
+	}
+
+	@Transactional
+	public ClaimResponse attachDocument(Long claimId, String fileUrl, String documentName, String documentType,
+			String email) {
+
+		// Verify the claim exists
+		Claim claim = claimRepository.findById(claimId)
+				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
+
+		// Verify this claim belongs to the logged-in customer
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		Customer customer = customerRepository.findByUserId(user.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+
+		if (!claim.getPolicy().getCustomer().getId().equals(customer.getId())) {
+			throw new BusinessRuleException("You can only attach documents to your own claims");
+		}
+
+		// Build and save the document record
+		ClaimDocument doc = ClaimDocument.builder().claim(claim).documentName(documentName).documentType(documentType)
+				.documentReference(fileUrl) // <-- This is the Cloudinary URL
+				.build();
+
+		documentRepository.save(doc);
+
+		log.info("Document attached: claimId={}, type={}, url={}", claimId, documentType, fileUrl);
+
+		return mapToResponse(claim);
 	}
 }

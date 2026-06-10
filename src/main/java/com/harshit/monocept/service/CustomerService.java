@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CustomerService {
 
-	// SRS LOG-RUL-003: Sensitive data unnecessarily log nahi
+	
 	private static final Logger log = LoggerFactory.getLogger(CustomerService.class);
 
 	private final CustomerRepository customerRepository;
@@ -34,7 +34,7 @@ public class CustomerService {
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
 		if (customerRepository.existsByUserId(user.getId())) {
-			// SRS LOG-RUL-005: Business rule violation = warn
+			
 			log.warn("Profile already exists for user: {}", email);
 			throw new BusinessRuleException("Profile already exists for this user");
 		}
@@ -44,7 +44,7 @@ public class CustomerService {
 				.nomineeRelation(req.getNomineeRelation()).build();
 
 		Customer saved = customerRepository.save(customer);
-		// SRS LOG-RUL-004: Successful operation = info
+		
 		log.info("Customer profile created: customerId={}, userId={}", saved.getId(), user.getId());
 
 		return mapToResponse(saved);
