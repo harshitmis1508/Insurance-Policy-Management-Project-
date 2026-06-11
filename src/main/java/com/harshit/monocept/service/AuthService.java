@@ -1,35 +1,40 @@
 package com.harshit.monocept.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.harshit.monocept.dto.request.LoginRequest;
 import com.harshit.monocept.dto.request.RegisterRequest;
+import com.harshit.monocept.dto.request.ResendOtpRequest;
+import com.harshit.monocept.dto.request.VerifyOtpRequest;
 import com.harshit.monocept.dto.response.LoginResponse;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.Role;
+import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.DuplicateResourceException;
+import com.harshit.monocept.exception.ResourceNotFoundException;
 import com.harshit.monocept.repository.UserRepository;
 import com.harshit.monocept.security.JwtUtil;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
-
-	private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 	private final AuthenticationManager authenticationManager;
 	private final JwtUtil jwtUtil;
+	private final OtpService otpService;
 
+	@Transactional
 	public User register(RegisterRequest req) {
 		if (userRepository.existsByEmail(req.getEmail())) {
 			log.warn("Registration failed - duplicate email: {}", req.getEmail());
@@ -38,14 +43,56 @@ public class AuthService {
 
 		User user = User.builder().fullName(req.getFullName()).email(req.getEmail())
 				.password(passwordEncoder.encode(req.getPassword())).mobileNumber(req.getMobileNumber())
-				.role(Role.CUSTOMER).isActive(true).build();
+				.role(Role.CUSTOMER).isActive(true).emailVerified(false).phoneVerified(false).isVerified(false).build();
 
 		User saved = userRepository.save(user);
-		log.info("New customer registered: id={}, email={}", saved.getId(), saved.getEmail());
+		log.info("New user registered (pending OTP): id={}, email={}", saved.getId(), saved.getEmail());
+
+		otpService.createAndSendOtp(saved);
 		return saved;
 	}
 
+	@Transactional
+	public void verifyOtp(VerifyOtpRequest req) {
+		User user = userRepository.findByEmail(req.getEmail())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + req.getEmail()));
+
+		if (Boolean.TRUE.equals(user.getIsVerified())) {
+			throw new BusinessRuleException("Account is already verified. Please login.");
+		}
+
+		// Only email OTP now
+		otpService.verifyOtp(user, req.getEmailOtp());
+
+		user.setEmailVerified(true);
+		user.setPhoneVerified(true);
+		user.setIsVerified(true);
+		userRepository.save(user);
+
+		log.info("User verified successfully: email={}", user.getEmail());
+	}
+
+	@Transactional
+	public void resendOtp(ResendOtpRequest req) {
+		User user = userRepository.findByEmail(req.getEmail())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + req.getEmail()));
+
+		if (Boolean.TRUE.equals(user.getIsVerified())) {
+			throw new BusinessRuleException("Account is already verified. No need to resend OTP.");
+		}
+
+		otpService.createAndSendOtp(user);
+		log.info("OTP resent for user: {}", user.getEmail());
+	}
+
 	public LoginResponse login(LoginRequest req) {
+		User user = userRepository.findByEmail(req.getEmail())
+				.orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+
+		if (!Boolean.TRUE.equals(user.getIsVerified())) {
+			throw new BusinessRuleException("Account not verified. Please verify your email OTP first.");
+		}
+
 		try {
 			authenticationManager
 					.authenticate(new UsernamePasswordAuthenticationToken(req.getEmail(), req.getPassword()));
@@ -54,9 +101,7 @@ public class AuthService {
 			throw new BadCredentialsException("Invalid email or password");
 		}
 
-		User user = userRepository.findByEmail(req.getEmail()).orElseThrow();
 		String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name());
-
 		log.info("Login successful: email={}, role={}", user.getEmail(), user.getRole());
 
 		return LoginResponse.builder().token(token).tokenType("Bearer").email(user.getEmail())
