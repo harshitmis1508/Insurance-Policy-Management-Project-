@@ -28,16 +28,16 @@ public class DataInitializer implements CommandLineRunner {
 
 	private void createAdminIfNotExists() {
 
-		if (userRepository.existsByEmail("admin@insurance.com")) {
+		if (userRepository.existsByEmail("admin@gmail.com")) {
 			log.info("Admin already exists — skipping creation");
 			return;
 		}
 
-		User admin = User.builder().fullName("Admin User").email("admin@insurance.com")
+		User admin = User.builder().fullName("Admin User").email("admin@gmail.com")
 				.password(passwordEncoder.encode("password123")).mobileNumber("9999999999").role(Role.ADMIN)
-				.isActive(true).build();
+				.isActive(true).isVerified(true).build();
 
 		userRepository.save(admin);
-		log.info("Admin created successfully: admin@insurance.com");
+		log.info("Admin created successfully: admin@gmail.com");
 	}
 }

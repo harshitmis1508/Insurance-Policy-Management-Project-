@@ -53,7 +53,7 @@ public class UserService {
 
 		User agent = User.builder().fullName(req.getFullName()).email(req.getEmail())
 				.password(passwordEncoder.encode(req.getPassword())).mobileNumber(req.getMobileNumber())
-				.role(Role.AGENT).isActive(true).build();
+				.role(Role.AGENT).isActive(true).isVerified(true).emailVerified(true).phoneVerified(true).build();
 
 		User saved = userRepository.save(agent);
 		log.info("Agent created: id={}, email={}", saved.getId(), saved.getEmail());
