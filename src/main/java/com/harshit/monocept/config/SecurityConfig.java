@@ -40,8 +40,7 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
-		http.cors(cors -> cors.configurationSource(corsConfigurationSource())) // ← CORS yahan add kiya
-				.csrf(csrf -> csrf.disable())
+		http.cors(cors -> cors.configurationSource(corsConfigurationSource())).csrf(csrf -> csrf.disable())
 				.authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**").permitAll()
 						.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
 						.requestMatchers("/h2-console/**").permitAll()
@@ -56,17 +55,16 @@ public class SecurityConfig {
 		return http.build();
 	}
 
-	// ← Ye nayi method add ki hai CORS ke liye
 	@Bean
 	public CorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration config = new CorsConfiguration();
-		config.setAllowedOrigins(List.of("http://localhost:5173")); // React ka default port
+		config.setAllowedOrigins(List.of("http://localhost:5173"));
 		config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-		config.setAllowedHeaders(List.of("*")); // Authorization header bhi allow hoga
+		config.setAllowedHeaders(List.of("*"));
 		config.setAllowCredentials(true);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-		source.registerCorsConfiguration("/**", config); // saare endpoints pe CORS lagao
+		source.registerCorsConfiguration("/**", config);
 		return source;
 	}
 
