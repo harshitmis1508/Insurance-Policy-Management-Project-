@@ -7,10 +7,12 @@ import org.springframework.stereotype.Repository;
 
 import com.harshit.monocept.entity.OtpVerification;
 import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.OtpChannel;
 
 @Repository
 public interface OtpVerificationRepository extends JpaRepository<OtpVerification, Long> {
 
-	// Finds the latest unused OTP for a user (for verification)
-	Optional<OtpVerification> findTopByUserAndUsedFalseOrderByCreatedAtDesc(User user);
+	Optional<OtpVerification> findTopByUserAndChannelAndUsedFalseOrderByCreatedAtDesc(User user, OtpChannel channel);
+
+	Optional<OtpVerification> findTopByUserOrderByCreatedAtDesc(User user);
 }

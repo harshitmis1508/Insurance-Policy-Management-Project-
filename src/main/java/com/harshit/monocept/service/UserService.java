@@ -11,6 +11,7 @@ import com.harshit.monocept.dto.request.CreateAgentRequest;
 import com.harshit.monocept.dto.request.UserStatusUpdateRequest;
 import com.harshit.monocept.dto.response.UserResponse;
 import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.OtpChannel;
 import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.DuplicateResourceException;
@@ -53,7 +54,8 @@ public class UserService {
 
 		User agent = User.builder().fullName(req.getFullName()).email(req.getEmail())
 				.password(passwordEncoder.encode(req.getPassword())).mobileNumber(req.getMobileNumber())
-				.role(Role.AGENT).isActive(true).isVerified(true).emailVerified(true).phoneVerified(true).build();
+				.role(Role.AGENT).preferredOtpChannel(OtpChannel.EMAIL).isActive(true).isVerified(true)
+				.emailVerified(true).phoneVerified(true).build();
 
 		User saved = userRepository.save(agent);
 		log.info("Agent created: id={}, email={}", saved.getId(), saved.getEmail());

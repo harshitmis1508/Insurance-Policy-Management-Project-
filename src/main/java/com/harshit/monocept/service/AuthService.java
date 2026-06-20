@@ -13,6 +13,7 @@ import com.harshit.monocept.dto.request.ResendOtpRequest;
 import com.harshit.monocept.dto.request.VerifyOtpRequest;
 import com.harshit.monocept.dto.response.LoginResponse;
 import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.OtpChannel;
 import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.DuplicateResourceException;
@@ -43,12 +44,14 @@ public class AuthService {
 
 		User user = User.builder().fullName(req.getFullName()).email(req.getEmail())
 				.password(passwordEncoder.encode(req.getPassword())).mobileNumber(req.getMobileNumber())
-				.role(Role.CUSTOMER).isActive(true).emailVerified(false).phoneVerified(false).isVerified(false).build();
+				.preferredOtpChannel(req.getOtpChannel()).role(Role.CUSTOMER).isActive(true).emailVerified(false)
+				.phoneVerified(false).isVerified(false).build();
 
 		User saved = userRepository.save(user);
-		log.info("New user registered (pending OTP): id={}, email={}", saved.getId(), saved.getEmail());
+		log.info("New user registered (pending OTP): id={}, email={}, channel={}", saved.getId(), saved.getEmail(),
+				req.getOtpChannel());
 
-		otpService.createAndSendOtp(saved);
+		otpService.createAndSendOtp(saved, req.getOtpChannel());
 		return saved;
 	}
 
@@ -61,15 +64,18 @@ public class AuthService {
 			throw new BusinessRuleException("Account is already verified. Please login.");
 		}
 
-		// Only email OTP now
-		otpService.verifyOtp(user, req.getEmailOtp());
+		otpService.verifyOtp(user, req.getOtpChannel(), req.getOtp());
 
-		user.setEmailVerified(true);
-		user.setPhoneVerified(true);
+		if (req.getOtpChannel() == OtpChannel.EMAIL) {
+			user.setEmailVerified(true);
+		} else {
+			user.setPhoneVerified(true);
+		}
+
 		user.setIsVerified(true);
 		userRepository.save(user);
 
-		log.info("User verified successfully: email={}", user.getEmail());
+		log.info("User verified successfully via {}: email={}", req.getOtpChannel(), user.getEmail());
 	}
 
 	@Transactional
@@ -81,8 +87,8 @@ public class AuthService {
 			throw new BusinessRuleException("Account is already verified. No need to resend OTP.");
 		}
 
-		otpService.createAndSendOtp(user);
-		log.info("OTP resent for user: {}", user.getEmail());
+		otpService.createAndSendOtp(user, req.getOtpChannel());
+		log.info("OTP resent for user: {} via {}", user.getEmail(), req.getOtpChannel());
 	}
 
 	public LoginResponse login(LoginRequest req) {
@@ -90,7 +96,7 @@ public class AuthService {
 				.orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
 		if (!Boolean.TRUE.equals(user.getIsVerified())) {
-			throw new BusinessRuleException("Account not verified. Please verify your email OTP first.");
+			throw new BusinessRuleException("Account not verified. Please verify your email or phone OTP first.");
 		}
 
 		try {

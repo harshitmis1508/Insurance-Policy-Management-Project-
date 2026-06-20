@@ -2,6 +2,7 @@ package com.harshit.monocept.entity;
 
 import java.time.LocalDateTime;
 
+import com.harshit.monocept.enums.OtpChannel;
 import com.harshit.monocept.enums.Role;
 
 import jakarta.persistence.Column;
@@ -47,12 +48,15 @@ public class User {
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
+	private OtpChannel preferredOtpChannel;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
 	private Role role;
 
 	@Builder.Default
 	private Boolean isActive = true;
 
-	// ✅ NEW: OTP verification flags
 	@Builder.Default
 	@Column(nullable = false)
 	private Boolean emailVerified = false;
@@ -61,7 +65,7 @@ public class User {
 	@Column(nullable = false)
 	private Boolean phoneVerified = false;
 
-	// ✅ NEW: Account is fully verified only after both OTPs confirmed
+	// Verified once the user's CHOSEN channel (email OR phone) is confirmed
 	@Builder.Default
 	@Column(nullable = false)
 	private Boolean isVerified = false;

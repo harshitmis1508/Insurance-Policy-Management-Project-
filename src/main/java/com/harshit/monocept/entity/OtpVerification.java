@@ -2,8 +2,12 @@ package com.harshit.monocept.entity;
 
 import java.time.LocalDateTime;
 
+import com.harshit.monocept.enums.OtpChannel;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -35,17 +39,26 @@ public class OtpVerification {
 	@JoinColumn(name = "user_id", nullable = false)
 	private User user;
 
+	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
-	private String emailOtp;
+	private OtpChannel channel;
 
-	@Column(nullable = false)
-	private String phoneOtp;
+	/**
+	 * EMAIL channel: locally generated 6-digit code, stored here. PHONE channel
+	 * (Twilio Verify): left null - Twilio holds the code server-side.
+	 */
+	@Column(name = "otp_code")
+	private String otpCode;
 
 	@Column(nullable = false)
 	private LocalDateTime expiresAt;
 
 	@Builder.Default
 	private boolean used = false;
+
+	@Builder.Default
+	@Column(nullable = false)
+	private int attemptCount = 0;
 
 	private LocalDateTime createdAt;
 
