@@ -18,6 +18,7 @@ import com.harshit.monocept.entity.Policy;
 import com.harshit.monocept.entity.PolicyPlan;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.PremiumType;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.ResourceNotFoundException;
 import com.harshit.monocept.repository.CustomerRepository;
@@ -175,8 +176,16 @@ public class PolicyService {
 	}
 
 	private Policy buildPolicy(Customer customer, PolicyPlan plan, LocalDate startDate) {
-		return Policy.builder().policyNumber(generatePolicyNumber()).customer(customer).plan(plan).startDate(startDate)
-				.endDate(startDate.plusYears(plan.getDurationYears())).status(PolicyStatus.PENDING_PAYMENT).build();
+
+		Policy.PolicyBuilder builder = Policy.builder().policyNumber(generatePolicyNumber()).customer(customer)
+				.plan(plan).startDate(startDate).endDate(startDate.plusYears(plan.getDurationYears()))
+				.status(PolicyStatus.PENDING_PAYMENT).premiumsPaid(0);
+
+		if (plan.getPremiumType() == PremiumType.ANNUAL) {
+			builder.nextPremiumDueDate(startDate);
+		}
+
+		return builder.build();
 	}
 
 	public PolicyResponse mapToResponse(Policy p) {
@@ -186,7 +195,8 @@ public class PolicyService {
 				.productType(p.getPlan().getProduct().getProductType()).coverageAmount(p.getPlan().getCoverageAmount())
 				.premiumAmount(p.getPlan().getPremiumAmount()).premiumType(p.getPlan().getPremiumType())
 				.startDate(p.getStartDate()).endDate(p.getEndDate()).status(p.getStatus())
-				.totalPremiumPaid(p.getTotalPremiumPaid()).createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt())
-				.build();
+				.totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
+				.nextPremiumDueDate(p.getNextPremiumDueDate()).durationYears(p.getPlan().getDurationYears())
+				.createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt()).build();
 	}
 }

@@ -1,5 +1,7 @@
 package com.harshit.monocept.service;
 
+import java.time.LocalDate;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -15,6 +17,7 @@ import com.harshit.monocept.entity.PremiumPayment;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.PaymentStatus;
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.PremiumType;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.DuplicateResourceException;
 import com.harshit.monocept.exception.ResourceNotFoundException;
@@ -104,6 +107,8 @@ public class PaymentService {
 
 	private PaymentResponse processPayment(PaymentRequest req, Policy policy) {
 
+		PremiumType premiumType = policy.getPlan().getPremiumType();
+
 		if (paymentRepository.existsByTransactionReference(req.getTransactionReference())) {
 			log.warn("Duplicate transaction reference: {}", req.getTransactionReference());
 			throw new DuplicateResourceException(
@@ -111,6 +116,17 @@ public class PaymentService {
 		}
 		if (req.getAmount().compareTo(policy.getPlan().getPremiumAmount()) != 0) {
 			throw new BusinessRuleException("Payment amount must match premium amount");
+		}
+
+		if (premiumType == PremiumType.ONE_TIME
+				&& policy.getTotalPremiumPaid().compareTo(java.math.BigDecimal.ZERO) > 0) {
+
+			throw new BusinessRuleException("One-time premium already paid");
+		}
+
+		if (premiumType == PremiumType.ANNUAL && policy.getPremiumsPaid() >= policy.getPlan().getDurationYears()) {
+
+			throw new BusinessRuleException("All annual premiums already paid");
 		}
 
 		if (policy.getStatus() == PolicyStatus.CANCELLED) {
@@ -133,16 +149,28 @@ public class PaymentService {
 				req.getPaymentStatus(), policy.getId(), req.getAmount());
 
 		if (req.getPaymentStatus() == PaymentStatus.SUCCESS) {
+
 			policy.setTotalPremiumPaid(policy.getTotalPremiumPaid().add(req.getAmount()));
 
-			if (policy.getStatus() == PolicyStatus.PENDING_PAYMENT
-					&& policy.getTotalPremiumPaid().compareTo(policy.getPlan().getPremiumAmount()) >= 0) {
+			if (premiumType == PremiumType.ONE_TIME) {
+
 				policy.setStatus(PolicyStatus.ACTIVE);
-				policyRepository.save(policy);
-				log.info("Policy ACTIVATED after payment: policyNumber={}", policy.getPolicyNumber());
-			} else {
-				policyRepository.save(policy);
 			}
+
+			if (premiumType == PremiumType.ANNUAL) {
+
+				policy.setPremiumsPaid(policy.getPremiumsPaid() + 1);
+
+				policy.setStatus(PolicyStatus.ACTIVE);
+
+				if (policy.getNextPremiumDueDate() == null) {
+					policy.setNextPremiumDueDate(LocalDate.now().plusYears(1));
+				} else {
+					policy.setNextPremiumDueDate(policy.getNextPremiumDueDate().plusYears(1));
+				}
+			}
+
+			policyRepository.save(policy);
 		} else {
 			log.warn("Payment {} for policyId={}: policy remains {}", req.getPaymentStatus(), policy.getId(),
 					policy.getStatus());

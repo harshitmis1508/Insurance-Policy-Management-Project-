@@ -34,6 +34,9 @@ public class PolicyResponse {
 	private LocalDate endDate;
 	private PolicyStatus status;
 	private BigDecimal totalPremiumPaid;
+	private Integer premiumsPaid;
+	private LocalDate nextPremiumDueDate;
+	private Integer durationYears;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
 }

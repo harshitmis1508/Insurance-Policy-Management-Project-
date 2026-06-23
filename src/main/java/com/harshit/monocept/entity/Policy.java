@@ -63,6 +63,11 @@ public class Policy {
 	@Column(precision = 15, scale = 2)
 	private BigDecimal totalPremiumPaid = BigDecimal.ZERO;
 
+	@Builder.Default
+	private Integer premiumsPaid = 0;
+
+	private LocalDate nextPremiumDueDate;
+
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
 

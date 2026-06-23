@@ -29,8 +29,6 @@ public class ClaimDocumentController {
 
 	private final ClaimDocumentService documentService;
 
-	// ✅ Upload document for a claim
-	// multipart/form-data use hoga — JSON nahi
 	@PostMapping(value = "/{claimId}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	@PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<DocumentUploadResponse>> upload(@PathVariable Long claimId,
@@ -44,7 +42,6 @@ public class ClaimDocumentController {
 				.body(ApiResponse.success("Document uploaded successfully", response));
 	}
 
-	// ✅ Get all documents for a claim
 	@GetMapping("/{claimId}/documents")
 	@PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<List<DocumentUploadResponse>>> getDocuments(@PathVariable Long claimId,
@@ -54,7 +51,6 @@ public class ClaimDocumentController {
 				ApiResponse.success("Documents fetched", documentService.getClaimDocuments(claimId, auth.getName())));
 	}
 
-	// ✅ Delete a document
 	@DeleteMapping("/documents/{documentId}")
 	@PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<String>> delete(@PathVariable Long documentId, Authentication auth) {
