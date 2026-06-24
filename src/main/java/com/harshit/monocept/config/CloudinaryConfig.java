@@ -23,14 +23,13 @@ public class CloudinaryConfig {
 
 	@Bean
 	public Cloudinary cloudinary() {
-		// ObjectUtils use mat karo — direct Map use karo
+		
 		Map<String, String> config = new HashMap<>();
 		config.put("cloud_name", cloudName);
 		config.put("api_key", apiKey);
 		config.put("api_secret", apiSecret);
 		config.put("secure", "true");
 
-		// Console mein print karo verify ke liye
 		System.out.println("=== Cloudinary Config ===");
 		System.out.println("Cloud Name: " + cloudName);
 		System.out.println("API Key: " + apiKey);

@@ -63,7 +63,6 @@ public class GlobalExceptionHandler {
 				.body(ApiResponse.error("Something went wrong: " + ex.getMessage()));
 	}
 
-	// Multipart file size exceed hone par
 	@ExceptionHandler(MaxUploadSizeExceededException.class)
 	public ResponseEntity<ApiResponse<?>> handleMaxSize(MaxUploadSizeExceededException ex) {
 		log.warn("File size exceeded: {}", ex.getMessage());

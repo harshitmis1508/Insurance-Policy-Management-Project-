@@ -65,7 +65,6 @@ public class User {
 	@Column(nullable = false)
 	private Boolean phoneVerified = false;
 
-	// Verified once the user's CHOSEN channel (email OR phone) is confirmed
 	@Builder.Default
 	@Column(nullable = false)
 	private Boolean isVerified = false;
