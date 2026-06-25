@@ -1,8 +1,6 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,8 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.harshit.monocept.dto.request.PlanRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
+import com.harshit.monocept.dto.response.PagedResponse;
 import com.harshit.monocept.dto.response.PlanResponse;
 import com.harshit.monocept.service.PolicyPlanService;
+import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,25 +52,25 @@ public class PolicyPlanController {
 	}
 
 	@GetMapping("/active")
-	public ResponseEntity<ApiResponse<Page<PlanResponse>>> getActive(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<PlanResponse>>> getActive(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		return ResponseEntity
-				.ok(ApiResponse.success("Active plans", planService.getActivePlans(PageRequest.of(page, size, sort))));
+		Page<PlanResponse> result = planService.getActivePlans(
+				PaginationUtil.createPageable(page, size, sortBy, direction, PaginationUtil.PLAN_SORT_FIELDS));
+		return ResponseEntity.ok(ApiResponse.success("Active plans", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping("/product/{productId}")
-	public ResponseEntity<ApiResponse<Page<PlanResponse>>> getByProduct(@PathVariable Long productId,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+	public ResponseEntity<ApiResponse<PagedResponse<PlanResponse>>> getByProduct(@PathVariable Long productId,
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
+			@RequestParam(defaultValue = "desc") String direction) {
 
-		if (size > 100)
-			size = 100;
-		return ResponseEntity.ok(ApiResponse.success("Plans by product", planService.getPlansByProduct(productId,
-				PageRequest.of(page, size, Sort.by("createdAt").descending()))));
+		Page<PlanResponse> result = planService.getPlansByProduct(productId,
+				PaginationUtil.createPageable(page, size, sortBy, direction, PaginationUtil.PLAN_SORT_FIELDS));
+		return ResponseEntity
+				.ok(ApiResponse.success("Plans by product", PagedResponse.from(result, sortBy, direction)));
 	}
 }

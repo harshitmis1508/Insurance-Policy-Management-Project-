@@ -1,9 +1,7 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,7 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.harshit.monocept.dto.request.CustomerRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
 import com.harshit.monocept.dto.response.CustomerResponse;
+import com.harshit.monocept.dto.response.PagedResponse;
 import com.harshit.monocept.service.CustomerService;
+import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -62,16 +62,15 @@ public class CustomerController {
 
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
-	public ResponseEntity<ApiResponse<Page<CustomerResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<CustomerResponse>>> getAll(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction) {
 
-		if (size > 100)
-			size = 100;
-
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		Pageable pageable = PageRequest.of(page, size, sort);
-		return ResponseEntity.ok(ApiResponse.success("Customers fetched", customerService.getAllCustomers(pageable)));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.CUSTOMER_SORT_FIELDS);
+		Page<CustomerResponse> result = customerService.getAllCustomers(pageable);
+		return ResponseEntity
+				.ok(ApiResponse.success("Customers fetched", PagedResponse.from(result, sortBy, direction)));
 	}
 }

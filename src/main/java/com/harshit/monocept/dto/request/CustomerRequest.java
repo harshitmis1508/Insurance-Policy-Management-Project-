@@ -21,17 +21,17 @@ public class CustomerRequest {
 	@NotNull(message = "Date of birth is required")
 	@Past(message = "Date of birth must be a past date")
 	private LocalDate dateOfBirth;
+
 	@AssertTrue(message = "User must be at least 18 years old")
-    public boolean isAdult() {
+	public boolean isAdult() {
 
-        if (dateOfBirth == null) {
-            return true;
-            // @NotNull will handle null separately
-        }
+		if (dateOfBirth == null) {
+			return true;
+			// @NotNull will handle null separately
+		}
 
-        return !dateOfBirth.plusYears(18).isAfter(LocalDate.now());
-    }
-	
+		return !dateOfBirth.plusYears(18).isAfter(LocalDate.now());
+	}
 
 	@NotBlank(message = "Address is required")
 	private String address;

@@ -15,58 +15,72 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
-import com.harshit.monocept.dto.response.ApiResponse;
+import com.harshit.monocept.dto.response.ErrorResponse;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
 	@ExceptionHandler(ResourceNotFoundException.class)
-	public ResponseEntity<ApiResponse<?>> handleNotFound(ResourceNotFoundException ex) {
-		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(ex.getMessage()));
+	public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
+		return buildError(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", ex.getMessage(), request);
 	}
 
 	@ExceptionHandler(DuplicateResourceException.class)
-	public ResponseEntity<ApiResponse<?>> handleDuplicate(DuplicateResourceException ex) {
-		return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+	public ResponseEntity<ErrorResponse> handleDuplicate(DuplicateResourceException ex, HttpServletRequest request) {
+		return buildError(HttpStatus.CONFLICT, "DUPLICATE_RESOURCE", ex.getMessage(), request);
 	}
 
 	@ExceptionHandler(BusinessRuleException.class)
-	public ResponseEntity<ApiResponse<?>> handleBusiness(BusinessRuleException ex) {
-		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(ex.getMessage()));
+	public ResponseEntity<ErrorResponse> handleBusiness(BusinessRuleException ex, HttpServletRequest request) {
+		return buildError(HttpStatus.BAD_REQUEST, "BUSINESS_RULE_VIOLATION", ex.getMessage(), request);
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
-	public ResponseEntity<ApiResponse<?>> handleValidation(MethodArgumentNotValidException ex) {
+	public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex,
+			HttpServletRequest request) {
 		Map<String, String> errors = new HashMap<>();
 		ex.getBindingResult().getAllErrors().forEach(e -> {
 			String field = ((FieldError) e).getField();
 			errors.put(field, e.getDefaultMessage());
 		});
-		return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error("Validation failed: " + errors));
+		return buildError(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Validation failed: " + errors, request);
 	}
 
 	@ExceptionHandler(BadCredentialsException.class)
-	public ResponseEntity<ApiResponse<?>> handleBadCredentials(BadCredentialsException ex) {
-		return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Invalid email or password"));
+	public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
+		return buildError(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "Invalid email or password", request);
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)
-	public ResponseEntity<ApiResponse<?>> handleAccessDenied(AccessDeniedException ex) {
-		return ResponseEntity.status(HttpStatus.FORBIDDEN)
-				.body(ApiResponse.error("Access denied - insufficient permissions"));
+	public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
+		return buildError(HttpStatus.FORBIDDEN, "FORBIDDEN", "Access denied - insufficient permissions", request);
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex,
+			HttpServletRequest request) {
+		return buildError(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", ex.getMessage(), request);
 	}
 
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ApiResponse<?>> handleGeneral(Exception ex) {
-		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-				.body(ApiResponse.error("Something went wrong: " + ex.getMessage()));
+	public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, HttpServletRequest request) {
+		log.error("Unexpected system error", ex);
+		return buildError(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR", "Something went wrong", request);
 	}
 
 	@ExceptionHandler(MaxUploadSizeExceededException.class)
-	public ResponseEntity<ApiResponse<?>> handleMaxSize(MaxUploadSizeExceededException ex) {
+	public ResponseEntity<ErrorResponse> handleMaxSize(MaxUploadSizeExceededException ex, HttpServletRequest request) {
 		log.warn("File size exceeded: {}", ex.getMessage());
-		return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-				.body(ApiResponse.error("File size exceeds maximum allowed limit of 10MB"));
+		return buildError(HttpStatus.BAD_REQUEST, "FILE_SIZE_EXCEEDED",
+				"File size exceeds maximum allowed limit of 10MB", request);
+	}
+
+	private ResponseEntity<ErrorResponse> buildError(HttpStatus status, String errorType, String message,
+			HttpServletRequest request) {
+		return ResponseEntity.status(status).body(ErrorResponse.builder().statusCode(status.value())
+				.errorType(errorType).message(message).path(request.getRequestURI()).build());
 	}
 }

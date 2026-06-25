@@ -1,16 +1,17 @@
 package com.harshit.monocept.service;
 
 import org.springframework.security.authentication.AuthenticationManager;
-
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.harshit.monocept.dto.request.ForgotPasswordRequest;
 import com.harshit.monocept.dto.request.LoginRequest;
 import com.harshit.monocept.dto.request.RegisterRequest;
 import com.harshit.monocept.dto.request.ResendOtpRequest;
+import com.harshit.monocept.dto.request.ResetPasswordRequest;
 import com.harshit.monocept.dto.request.VerifyOtpRequest;
 import com.harshit.monocept.dto.response.LoginResponse;
 import com.harshit.monocept.entity.User;
@@ -92,9 +93,48 @@ public class AuthService {
 		log.info("OTP resent for user: {} via {}", user.getEmail(), req.getOtpChannel());
 	}
 
+	@Transactional
+	public void forgotPassword(ForgotPasswordRequest req) {
+		User user = userRepository.findByEmail(req.getEmail())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + req.getEmail()));
+
+		if (!Boolean.TRUE.equals(user.getIsActive())) {
+			throw new BusinessRuleException("User account is inactive. Please contact admin.");
+		}
+
+		otpService.createAndSendOtp(user, req.getOtpChannel());
+		log.info("Password reset OTP sent for user: {} via {}", user.getEmail(), req.getOtpChannel());
+	}
+
+	@Transactional
+	public void resetPassword(ResetPasswordRequest req) {
+		User user = userRepository.findByEmail(req.getEmail())
+				.orElseThrow(() -> new ResourceNotFoundException("User not found with email: " + req.getEmail()));
+
+		if (!Boolean.TRUE.equals(user.getIsActive())) {
+			throw new BusinessRuleException("User account is inactive. Please contact admin.");
+		}
+
+		otpService.verifyOtp(user, req.getOtpChannel(), req.getOtp());
+		user.setPassword(passwordEncoder.encode(req.getNewPassword()));
+		user.setIsVerified(true);
+		if (req.getOtpChannel() == OtpChannel.EMAIL) {
+			user.setEmailVerified(true);
+		} else {
+			user.setPhoneVerified(true);
+		}
+		userRepository.save(user);
+		log.info("Password reset successful for user: {}", user.getEmail());
+	}
+
 	public LoginResponse login(LoginRequest req) {
 		User user = userRepository.findByEmail(req.getEmail())
 				.orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
+
+		if (!Boolean.TRUE.equals(user.getIsActive())) {
+			log.warn("Inactive user login attempt: email={}", req.getEmail());
+			throw new BusinessRuleException("User account is inactive. Please contact admin.");
+		}
 
 		if (!Boolean.TRUE.equals(user.getIsVerified())) {
 			throw new BusinessRuleException("Account not verified. Please verify your email or phone OTP first.");

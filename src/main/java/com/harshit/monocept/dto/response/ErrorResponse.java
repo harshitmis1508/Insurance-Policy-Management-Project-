@@ -1,6 +1,6 @@
 package com.harshit.monocept.dto.response;
 
-import com.harshit.monocept.enums.Role;
+import java.time.LocalDateTime;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,11 +13,13 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LoginResponse {
-	private String token;
-	private String tokenType = "Bearer";
-	private String email;
-	private String fullName;
-	private Role role;
-	private long expiresIn;
+public class ErrorResponse {
+
+	@Builder.Default
+	private LocalDateTime timestamp = LocalDateTime.now();
+
+	private int statusCode;
+	private String errorType;
+	private String message;
+	private String path;
 }

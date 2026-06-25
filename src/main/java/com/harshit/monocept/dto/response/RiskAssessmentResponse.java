@@ -1,6 +1,8 @@
 package com.harshit.monocept.dto.response;
 
-import com.harshit.monocept.enums.Role;
+import java.util.List;
+
+import com.harshit.monocept.enums.RiskLevel;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,11 +15,10 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class LoginResponse {
-	private String token;
-	private String tokenType = "Bearer";
-	private String email;
-	private String fullName;
-	private Role role;
-	private long expiresIn;
+public class RiskAssessmentResponse {
+	private Long claimId;
+	private String claimNumber;
+	private int riskScore;
+	private RiskLevel riskLevel;
+	private List<String> reasons;
 }

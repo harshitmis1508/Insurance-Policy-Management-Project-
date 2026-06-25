@@ -30,6 +30,9 @@ public class ClaimResponse {
 	private ClaimStatus claimStatus;
 	private String agentRemarks;
 	private String adminRemarks;
+	private Long assignedAgentId;
+	private String assignedAgentName;
+	private LocalDateTime assignedAt;
 	private List<DocumentResponse> documents;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;

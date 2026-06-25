@@ -129,6 +129,10 @@ public class PaymentService {
 			throw new BusinessRuleException("All annual premiums already paid");
 		}
 
+		if (premiumType == PremiumType.ANNUAL && req.getPaymentStatus() == PaymentStatus.SUCCESS) {
+			validateAnnualPremiumPaymentWindow(policy);
+		}
+
 		if (policy.getStatus() == PolicyStatus.CANCELLED) {
 			log.warn("Payment on cancelled policy: policyId={}", policy.getId());
 			throw new BusinessRuleException("Cannot make payment for a cancelled policy");
@@ -177,6 +181,26 @@ public class PaymentService {
 		}
 
 		return mapToResponse(saved);
+	}
+
+	private void validateAnnualPremiumPaymentWindow(Policy policy) {
+		if (policy.getPremiumsPaid() == null || policy.getPremiumsPaid() == 0
+				|| policy.getStatus() == PolicyStatus.PENDING_PAYMENT) {
+			return;
+		}
+
+		LocalDate nextDueDate = policy.getNextPremiumDueDate();
+		if (nextDueDate == null) {
+			throw new BusinessRuleException("Next premium due date is not available for this annual policy");
+		}
+
+		LocalDate paymentWindowStart = nextDueDate.minusMonths(1);
+		LocalDate today = LocalDate.now();
+
+		if (today.isBefore(paymentWindowStart)) {
+			throw new BusinessRuleException("Next annual premium can be paid only from " + paymentWindowStart
+					+ " onwards. Your next premium due date is " + nextDueDate);
+		}
 	}
 
 	private PaymentResponse mapToResponse(PremiumPayment p) {

@@ -7,9 +7,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.harshit.monocept.dto.request.ForgotPasswordRequest;
 import com.harshit.monocept.dto.request.LoginRequest;
 import com.harshit.monocept.dto.request.RegisterRequest;
 import com.harshit.monocept.dto.request.ResendOtpRequest;
+import com.harshit.monocept.dto.request.ResetPasswordRequest;
 import com.harshit.monocept.dto.request.VerifyOtpRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
 import com.harshit.monocept.dto.response.LoginResponse;
@@ -51,5 +53,20 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<ApiResponse<LoginResponse>> login(@Valid @RequestBody LoginRequest req) {
 		return ResponseEntity.ok(ApiResponse.success("Login successful", authService.login(req)));
+	}
+
+	@PostMapping("/forgot-password")
+	public ResponseEntity<ApiResponse<String>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest req) {
+		authService.forgotPassword(req);
+		return ResponseEntity.ok(ApiResponse.success("Password reset OTP sent via " + req.getOtpChannel(),
+				"OTP sent for: " + req.getEmail()));
+	}
+
+	@PostMapping("/reset-password")
+	public ResponseEntity<ApiResponse<String>> resetPassword(@Valid @RequestBody ResetPasswordRequest req) {
+		authService.resetPassword(req);
+		return ResponseEntity
+				.ok(ApiResponse.success("Password reset successful. You can now login with your new password.",
+						"Password reset for: " + req.getEmail()));
 	}
 }

@@ -1,12 +1,14 @@
 package com.harshit.monocept.repository;
 
-import com.harshit.monocept.entity.User;
-import com.harshit.monocept.enums.Role;
+import java.util.Optional;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-import java.util.Optional;
+
+import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.Role;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {

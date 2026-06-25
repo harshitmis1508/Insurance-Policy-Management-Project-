@@ -1,8 +1,7 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,8 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.harshit.monocept.dto.request.PaymentRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
+import com.harshit.monocept.dto.response.PagedResponse;
 import com.harshit.monocept.dto.response.PaymentResponse;
 import com.harshit.monocept.service.PaymentService;
+import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -47,36 +48,40 @@ public class PaymentController {
 
 	@GetMapping("/my/{policyId}")
 	@PreAuthorize("hasRole('CUSTOMER')")
-	public ResponseEntity<ApiResponse<Page<PaymentResponse>>> getMyPayments(@PathVariable Long policyId,
+	public ResponseEntity<ApiResponse<PagedResponse<PaymentResponse>>> getMyPayments(@PathVariable Long policyId,
 			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
-			Authentication auth) {
+			@RequestParam(defaultValue = "createdAt") String sortBy,
+			@RequestParam(defaultValue = "desc") String direction, Authentication auth) {
 
-		if (size > 100)
-			size = 100;
-		return ResponseEntity.ok(ApiResponse.success("My payments", paymentService.getMyPayments(policyId,
-				auth.getName(), PageRequest.of(page, size, Sort.by("createdAt").descending()))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.PAYMENT_SORT_FIELDS);
+		Page<PaymentResponse> result = paymentService.getMyPayments(policyId, auth.getName(), pageable);
+		return ResponseEntity.ok(ApiResponse.success("My payments", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
-	public ResponseEntity<ApiResponse<Page<PaymentResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<PaymentResponse>>> getAll(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		return ResponseEntity.ok(
-				ApiResponse.success("All payments", paymentService.getAllPayments(PageRequest.of(page, size, sort))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.PAYMENT_SORT_FIELDS);
+		Page<PaymentResponse> result = paymentService.getAllPayments(pageable);
+		return ResponseEntity.ok(ApiResponse.success("All payments", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping("/policy/{policyId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
-	public ResponseEntity<ApiResponse<Page<PaymentResponse>>> getByPolicy(@PathVariable Long policyId,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+	public ResponseEntity<ApiResponse<PagedResponse<PaymentResponse>>> getByPolicy(@PathVariable Long policyId,
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
+			@RequestParam(defaultValue = "desc") String direction) {
 
-		return ResponseEntity.ok(ApiResponse.success("Policy payments", paymentService.getPaymentsByPolicy(policyId,
-				PageRequest.of(page, size, Sort.by("createdAt").descending()))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.PAYMENT_SORT_FIELDS);
+		Page<PaymentResponse> result = paymentService.getPaymentsByPolicy(policyId, pageable);
+		return ResponseEntity.ok(ApiResponse.success("Policy payments", PagedResponse.from(result, sortBy, direction)));
 	}
 }

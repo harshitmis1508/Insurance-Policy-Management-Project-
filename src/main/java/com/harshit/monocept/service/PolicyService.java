@@ -19,6 +19,7 @@ import com.harshit.monocept.entity.PolicyPlan;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.PolicyStatus;
 import com.harshit.monocept.enums.PremiumType;
+import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.ResourceNotFoundException;
 import com.harshit.monocept.repository.CustomerRepository;
@@ -152,9 +153,22 @@ public class PolicyService {
 		return mapToResponse(saved);
 	}
 
-	public PolicyResponse getPolicyById(Long policyId) {
+	public PolicyResponse getPolicyById(Long policyId, String email) {
 		Policy policy = policyRepository.findById(policyId)
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + policyId));
+
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		if (user.getRole() == Role.CUSTOMER) {
+			Customer customer = customerRepository.findByUserId(user.getId())
+					.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+			if (!policy.getCustomer().getId().equals(customer.getId())) {
+				log.warn("Customer {} attempted to access policyId={} owned by customerId={}", email, policyId,
+						policy.getCustomer().getId());
+				throw new BusinessRuleException("You can only access your own policies");
+			}
+		}
 
 		// SRS FR-POL-010: Auto expire check
 		if (policy.getStatus() == PolicyStatus.ACTIVE && policy.getEndDate().isBefore(LocalDate.now())) {

@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
-import com.harshit.monocept.enums.*;
+import com.harshit.monocept.enums.ClaimStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -60,6 +60,12 @@ public class Claim {
 
 	private String agentRemarks;
 	private String adminRemarks;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "assigned_agent_id")
+	private User assignedAgent;
+
+	private LocalDateTime assignedAt;
 
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
