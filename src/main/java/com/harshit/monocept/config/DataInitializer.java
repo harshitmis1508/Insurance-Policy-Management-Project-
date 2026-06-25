@@ -35,10 +35,10 @@ public class DataInitializer implements CommandLineRunner {
 			return;
 		}
 
-		User admin = User.builder().fullName("Admin User").email("admin@gmail.com")
-				.password(passwordEncoder.encode("password123")).mobileNumber("9999999999").role(Role.ADMIN)
-				.preferredOtpChannel(OtpChannel.EMAIL).isActive(true).isVerified(true).emailVerified(true)
-				.phoneVerified(true).build();
+			User admin = User.builder().fullName("Admin User").email("admin@gmail.com")
+					.password(passwordEncoder.encode("password123")).mobileNumber("9999999999").role(Role.ADMIN)
+					.preferredOtpChannel(OtpChannel.EMAIL).isActive(true).isVerified(true).emailVerified(true)
+					.phoneVerified(true).build();
 
 		userRepository.save(admin);
 		log.info("Admin created successfully: admin@gmail.com");
