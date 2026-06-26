@@ -37,6 +37,10 @@ public class PolicyPlanService {
 			throw new BusinessRuleException("Cannot create plan for inactive product");
 		}
 
+		if (planRepository.existsByProductIdAndPlanNameIgnoreCase(req.getProductId(), req.getPlanName().trim())) {
+			throw new BusinessRuleException("A plan with this name already exists under the selected product");
+		}
+
 		if (req.getCoverageAmount().compareTo(req.getPremiumAmount()) <= 0) {
 			log.warn("Coverage <= Premium: coverage={}, premium={}", req.getCoverageAmount(), req.getPremiumAmount());
 			throw new BusinessRuleException("Coverage amount must be greater than premium amount");
@@ -49,7 +53,6 @@ public class PolicyPlanService {
 				.isActive(req.getIsActive() != null ? req.getIsActive() : true).build();
 
 		PolicyPlan saved = planRepository.save(plan);
-		// SRS LOG-005
 		log.info("Plan created: id={}, name={}, productId={}", saved.getId(), saved.getPlanName(), product.getId());
 
 		return mapToResponse(saved);
@@ -67,6 +70,11 @@ public class PolicyPlanService {
 		if (!product.getIsActive()) {
 			log.warn("Plan update on inactive product: productId={}", req.getProductId());
 			throw new BusinessRuleException("Cannot link plan to inactive product");
+		}
+
+		if (planRepository.existsByProductIdAndPlanNameIgnoreCaseAndIdNot(req.getProductId(), req.getPlanName().trim(),
+				id)) {
+			throw new BusinessRuleException("A plan with this name already exists under the selected product");
 		}
 
 		if (req.getCoverageAmount().compareTo(req.getPremiumAmount()) <= 0) {
