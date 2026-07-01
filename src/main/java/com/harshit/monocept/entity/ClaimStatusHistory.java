@@ -2,7 +2,7 @@ package com.harshit.monocept.entity;
 
 import java.time.LocalDateTime;
 
-import com.harshit.monocept.enums.*;
+import com.harshit.monocept.enums.ClaimStatus;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

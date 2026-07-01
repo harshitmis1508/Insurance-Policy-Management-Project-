@@ -1,8 +1,6 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,8 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.harshit.monocept.dto.request.ProductRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
+import com.harshit.monocept.dto.response.PagedResponse;
 import com.harshit.monocept.dto.response.ProductResponse;
 import com.harshit.monocept.service.ProductService;
+import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -52,29 +52,25 @@ public class ProductController {
 	}
 
 	@GetMapping("/active")
-	public ResponseEntity<ApiResponse<Page<ProductResponse>>> getActive(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<ProductResponse>>> getActive(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		return ResponseEntity.ok(ApiResponse.success("Active products",
-				productService.getActiveProducts(PageRequest.of(page, size, sort))));
+		Page<ProductResponse> result = productService.getActiveProducts(
+				PaginationUtil.createPageable(page, size, sortBy, direction, PaginationUtil.PRODUCT_SORT_FIELDS));
+		return ResponseEntity.ok(ApiResponse.success("Active products", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<ApiResponse<Page<ProductResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<ProductResponse>>> getAll(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		return ResponseEntity.ok(
-				ApiResponse.success("All products", productService.getAllProducts(PageRequest.of(page, size, sort))));
+		Page<ProductResponse> result = productService.getAllProducts(
+				PaginationUtil.createPageable(page, size, sortBy, direction, PaginationUtil.PRODUCT_SORT_FIELDS));
+		return ResponseEntity.ok(ApiResponse.success("All products", PagedResponse.from(result, sortBy, direction)));
 	}
 }

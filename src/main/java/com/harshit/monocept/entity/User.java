@@ -1,9 +1,9 @@
 package com.harshit.monocept.entity;
 
-import com.harshit.monocept.enums.Role;
-
 import java.time.LocalDateTime;
 
+import com.harshit.monocept.enums.OtpChannel;
+import com.harshit.monocept.enums.Role;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -48,10 +48,26 @@ public class User {
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false)
+	private OtpChannel preferredOtpChannel;
+
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
 	private Role role;
 
 	@Builder.Default
 	private Boolean isActive = true;
+
+	@Builder.Default
+	@Column(nullable = false)
+	private Boolean emailVerified = false;
+
+	@Builder.Default
+	@Column(nullable = false)
+	private Boolean phoneVerified = false;
+
+	@Builder.Default
+	@Column(nullable = false)
+	private Boolean isVerified = false;
 
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;

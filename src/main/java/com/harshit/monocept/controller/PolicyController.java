@@ -1,8 +1,7 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,8 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.harshit.monocept.dto.request.PolicyIssueRequest;
 import com.harshit.monocept.dto.request.PolicyPurchaseRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
+import com.harshit.monocept.dto.response.PagedResponse;
 import com.harshit.monocept.dto.response.PolicyResponse;
 import com.harshit.monocept.service.PolicyService;
+import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,45 +50,48 @@ public class PolicyController {
 
 	@GetMapping("/my")
 	@PreAuthorize("hasRole('CUSTOMER')")
-	public ResponseEntity<ApiResponse<Page<PolicyResponse>>> getMyPolicies(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<PolicyResponse>>> getMyPolicies(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction, Authentication auth) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		return ResponseEntity.ok(ApiResponse.success("My policies",
-				policyService.getMyPolicies(auth.getName(), PageRequest.of(page, size, sort))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.POLICY_SORT_FIELDS);
+		Page<PolicyResponse> result = policyService.getMyPolicies(auth.getName(), pageable);
+		return ResponseEntity.ok(ApiResponse.success("My policies", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
-	public ResponseEntity<ApiResponse<Page<PolicyResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
+	public ResponseEntity<ApiResponse<PagedResponse<PolicyResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		return ResponseEntity.ok(
-				ApiResponse.success("All policies", policyService.getAllPolicies(PageRequest.of(page, size, sort))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.POLICY_SORT_FIELDS);
+		Page<PolicyResponse> result = policyService.getAllPolicies(pageable);
+		return ResponseEntity.ok(ApiResponse.success("All policies", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping("/customer/{customerId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
-	public ResponseEntity<ApiResponse<Page<PolicyResponse>>> getByCustomer(@PathVariable Long customerId,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+	public ResponseEntity<ApiResponse<PagedResponse<PolicyResponse>>> getByCustomer(@PathVariable Long customerId,
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
+			@RequestParam(defaultValue = "desc") String direction) {
 
-		return ResponseEntity.ok(ApiResponse.success("Customer policies", policyService
-				.getPoliciesByCustomer(customerId, PageRequest.of(page, size, Sort.by("createdAt").descending()))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.POLICY_SORT_FIELDS);
+		Page<PolicyResponse> result = policyService.getPoliciesByCustomer(customerId, pageable);
+		return ResponseEntity
+				.ok(ApiResponse.success("Customer policies", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping("/{policyId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT') or hasRole('CUSTOMER')")
-	public ResponseEntity<ApiResponse<PolicyResponse>> getById(@PathVariable Long policyId) {
-		return ResponseEntity.ok(ApiResponse.success("Policy details", policyService.getPolicyById(policyId)));
+	public ResponseEntity<ApiResponse<PolicyResponse>> getById(@PathVariable Long policyId, Authentication auth) {
+		return ResponseEntity
+				.ok(ApiResponse.success("Policy details", policyService.getPolicyById(policyId, auth.getName())));
 	}
 
 	@PatchMapping("/{policyId}/cancel")

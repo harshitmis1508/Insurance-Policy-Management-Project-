@@ -18,6 +18,8 @@ import com.harshit.monocept.entity.Policy;
 import com.harshit.monocept.entity.PolicyPlan;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.PremiumType;
+import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.ResourceNotFoundException;
 import com.harshit.monocept.repository.CustomerRepository;
@@ -31,7 +33,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PolicyService {
 
-	// SRS LOG-006/007: Policy purchase/issuance log
 	private static final Logger log = LoggerFactory.getLogger(PolicyService.class);
 
 	private final PolicyRepository policyRepository;
@@ -152,9 +153,22 @@ public class PolicyService {
 		return mapToResponse(saved);
 	}
 
-	public PolicyResponse getPolicyById(Long policyId) {
+	public PolicyResponse getPolicyById(Long policyId, String email) {
 		Policy policy = policyRepository.findById(policyId)
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + policyId));
+
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		if (user.getRole() == Role.CUSTOMER) {
+			Customer customer = customerRepository.findByUserId(user.getId())
+					.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+			if (!policy.getCustomer().getId().equals(customer.getId())) {
+				log.warn("Customer {} attempted to access policyId={} owned by customerId={}", email, policyId,
+						policy.getCustomer().getId());
+				throw new BusinessRuleException("You can only access your own policies");
+			}
+		}
 
 		// SRS FR-POL-010: Auto expire check
 		if (policy.getStatus() == PolicyStatus.ACTIVE && policy.getEndDate().isBefore(LocalDate.now())) {
@@ -176,8 +190,16 @@ public class PolicyService {
 	}
 
 	private Policy buildPolicy(Customer customer, PolicyPlan plan, LocalDate startDate) {
-		return Policy.builder().policyNumber(generatePolicyNumber()).customer(customer).plan(plan).startDate(startDate)
-				.endDate(startDate.plusYears(plan.getDurationYears())).status(PolicyStatus.PENDING_PAYMENT).build();
+
+		Policy.PolicyBuilder builder = Policy.builder().policyNumber(generatePolicyNumber()).customer(customer)
+				.plan(plan).startDate(startDate).endDate(startDate.plusYears(plan.getDurationYears()))
+				.status(PolicyStatus.PENDING_PAYMENT).premiumsPaid(0);
+
+		if (plan.getPremiumType() == PremiumType.ANNUAL) {
+			builder.nextPremiumDueDate(startDate);
+		}
+
+		return builder.build();
 	}
 
 	public PolicyResponse mapToResponse(Policy p) {
@@ -187,7 +209,8 @@ public class PolicyService {
 				.productType(p.getPlan().getProduct().getProductType()).coverageAmount(p.getPlan().getCoverageAmount())
 				.premiumAmount(p.getPlan().getPremiumAmount()).premiumType(p.getPlan().getPremiumType())
 				.startDate(p.getStartDate()).endDate(p.getEndDate()).status(p.getStatus())
-				.totalPremiumPaid(p.getTotalPremiumPaid()).createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt())
-				.build();
+				.totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
+				.nextPremiumDueDate(p.getNextPremiumDueDate()).durationYears(p.getPlan().getDurationYears())
+				.createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt()).build();
 	}
 }

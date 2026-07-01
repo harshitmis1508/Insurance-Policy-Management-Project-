@@ -1,9 +1,12 @@
 package com.harshit.monocept.dto.request;
 
-import jakarta.validation.constraints.*;
-import lombok.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-// SRS 11.3: User status update
 @Getter
 @Setter
 @NoArgsConstructor

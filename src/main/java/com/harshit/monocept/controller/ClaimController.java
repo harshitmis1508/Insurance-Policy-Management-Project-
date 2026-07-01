@@ -1,9 +1,7 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,8 +21,12 @@ import com.harshit.monocept.dto.request.ClaimReviewRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
 import com.harshit.monocept.dto.response.ClaimHistoryResponse;
 import com.harshit.monocept.dto.response.ClaimResponse;
+import com.harshit.monocept.dto.response.PagedResponse;
+import com.harshit.monocept.dto.response.RiskAssessmentResponse;
 import com.harshit.monocept.enums.ClaimStatus;
 import com.harshit.monocept.service.ClaimService;
+import com.harshit.monocept.service.RiskAssessmentService;
+import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 public class ClaimController {
 
 	private final ClaimService claimService;
+	private final RiskAssessmentService riskAssessmentService;
 
 	@PostMapping
 	@PreAuthorize("hasRole('CUSTOMER')")
@@ -46,40 +49,49 @@ public class ClaimController {
 
 	@GetMapping("/my")
 	@PreAuthorize("hasRole('CUSTOMER')")
-	public ResponseEntity<ApiResponse<Page<ClaimResponse>>> getMyClaims(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<ClaimResponse>>> getMyClaims(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction, Authentication auth) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		return ResponseEntity.ok(ApiResponse.success("My claims",
-				claimService.getMyClaims(auth.getName(), PageRequest.of(page, size, sort))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.CLAIM_SORT_FIELDS);
+		Page<ClaimResponse> result = claimService.getMyClaims(auth.getName(), pageable);
+		return ResponseEntity.ok(ApiResponse.success("My claims", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
-	public ResponseEntity<ApiResponse<Page<ClaimResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
+	public ResponseEntity<ApiResponse<PagedResponse<ClaimResponse>>> getAll(@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction, @RequestParam(required = false) ClaimStatus status) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-
-		Pageable pageable = PageRequest.of(page, size, sort);
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.CLAIM_SORT_FIELDS);
 
 		Page<ClaimResponse> result = (status != null) ? claimService.getClaimsByStatus(status, pageable)
 				: claimService.getAllClaims(pageable);
 
-		return ResponseEntity.ok(ApiResponse.success("Claims", result));
+		return ResponseEntity.ok(ApiResponse.success("Claims", PagedResponse.from(result, sortBy, direction)));
+	}
+
+	@GetMapping("/assigned-to-me")
+	@PreAuthorize("hasRole('AGENT')")
+	public ResponseEntity<ApiResponse<PagedResponse<ClaimResponse>>> getAssignedToMe(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
+			@RequestParam(defaultValue = "desc") String direction, Authentication auth) {
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.CLAIM_SORT_FIELDS);
+		Page<ClaimResponse> result = claimService.getAssignedToMe(auth.getName(), pageable);
+		return ResponseEntity.ok(ApiResponse.success("Assigned claims", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping("/{claimId}")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT') or hasRole('CUSTOMER')")
-	public ResponseEntity<ApiResponse<ClaimResponse>> getById(@PathVariable Long claimId) {
-		return ResponseEntity.ok(ApiResponse.success("Claim details", claimService.getClaimById(claimId)));
+	public ResponseEntity<ApiResponse<ClaimResponse>> getById(@PathVariable Long claimId, Authentication auth) {
+		return ResponseEntity
+				.ok(ApiResponse.success("Claim details", claimService.getClaimById(claimId, auth.getName())));
 	}
 
 	@PatchMapping("/{claimId}/review")
@@ -88,6 +100,20 @@ public class ClaimController {
 			@Valid @RequestBody ClaimReviewRequest req, Authentication auth) {
 		return ResponseEntity
 				.ok(ApiResponse.success("Claim reviewed", claimService.reviewClaim(claimId, req, auth.getName())));
+	}
+
+	@PatchMapping("/{claimId}/assign/{agentId}")
+	@PreAuthorize("hasRole('ADMIN')")
+	public ResponseEntity<ApiResponse<ClaimResponse>> assign(@PathVariable Long claimId, @PathVariable Long agentId,
+			Authentication auth) {
+		return ResponseEntity
+				.ok(ApiResponse.success("Claim assigned", claimService.assignClaim(claimId, agentId, auth.getName())));
+	}
+
+	@GetMapping("/{claimId}/risk-assessment")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
+	public ResponseEntity<ApiResponse<RiskAssessmentResponse>> riskAssessment(@PathVariable Long claimId) {
+		return ResponseEntity.ok(ApiResponse.success("Risk assessment", riskAssessmentService.assess(claimId)));
 	}
 
 	@PatchMapping("/{claimId}/decide")
@@ -100,10 +126,14 @@ public class ClaimController {
 
 	@GetMapping("/{claimId}/history")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT') or hasRole('CUSTOMER')")
-	public ResponseEntity<ApiResponse<Page<ClaimHistoryResponse>>> getHistory(@PathVariable Long claimId,
-			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+	public ResponseEntity<ApiResponse<PagedResponse<ClaimHistoryResponse>>> getHistory(@PathVariable Long claimId,
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "updatedAt") String sortBy,
+			@RequestParam(defaultValue = "asc") String direction, Authentication auth) {
 
-		return ResponseEntity.ok(ApiResponse.success("Claim history",
-				claimService.getClaimHistory(claimId, PageRequest.of(page, size, Sort.by("updatedAt").ascending()))));
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.CLAIM_HISTORY_SORT_FIELDS);
+		Page<ClaimHistoryResponse> result = claimService.getClaimHistory(claimId, auth.getName(), pageable);
+		return ResponseEntity.ok(ApiResponse.success("Claim history", PagedResponse.from(result, sortBy, direction)));
 	}
 }

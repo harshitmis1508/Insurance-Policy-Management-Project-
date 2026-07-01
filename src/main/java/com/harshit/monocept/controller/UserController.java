@@ -1,9 +1,7 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,9 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.harshit.monocept.dto.request.CreateAgentRequest;
 import com.harshit.monocept.dto.request.UserStatusUpdateRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
+import com.harshit.monocept.dto.response.PagedResponse;
 import com.harshit.monocept.dto.response.UserResponse;
 import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.service.UserService;
+import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -35,15 +35,14 @@ public class UserController {
 
 	@GetMapping
 	@PreAuthorize("hasRole('ADMIN')")
-	public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "10") int size, @RequestParam(defaultValue = "createdAt") String sortBy,
+	public ResponseEntity<ApiResponse<PagedResponse<UserResponse>>> getAllUsers(
+			@RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size,
+			@RequestParam(defaultValue = "createdAt") String sortBy,
 			@RequestParam(defaultValue = "desc") String direction, @RequestParam(required = false) Role role,
 			@RequestParam(required = false) Boolean isActive) {
 
-		if (size > 100)
-			size = 100;
-		Sort sort = direction.equalsIgnoreCase("asc") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
-		Pageable pageable = PageRequest.of(page, size, sort);
+		Pageable pageable = PaginationUtil.createPageable(page, size, sortBy, direction,
+				PaginationUtil.USER_SORT_FIELDS);
 
 		Page<UserResponse> result;
 		if (role != null)
@@ -53,7 +52,7 @@ public class UserController {
 		else
 			result = userService.getAllUsers(pageable);
 
-		return ResponseEntity.ok(ApiResponse.success("Users fetched", result));
+		return ResponseEntity.ok(ApiResponse.success("Users fetched", PagedResponse.from(result, sortBy, direction)));
 	}
 
 	@GetMapping("/{userId}")

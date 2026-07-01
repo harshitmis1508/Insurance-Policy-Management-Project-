@@ -1,12 +1,14 @@
 package com.harshit.monocept.config;
 
 import org.slf4j.Logger;
+
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.OtpChannel;
 import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.repository.UserRepository;
 
@@ -28,16 +30,17 @@ public class DataInitializer implements CommandLineRunner {
 
 	private void createAdminIfNotExists() {
 
-		if (userRepository.existsByEmail("admin@insurance.com")) {
+		if (userRepository.existsByEmail("admin@gmail.com")) {
 			log.info("Admin already exists — skipping creation");
 			return;
 		}
 
-		User admin = User.builder().fullName("Admin User").email("admin@insurance.com")
-				.password(passwordEncoder.encode("password123")).mobileNumber("9999999999").role(Role.ADMIN)
-				.isActive(true).build();
+			User admin = User.builder().fullName("Admin User").email("admin@gmail.com")
+					.password(passwordEncoder.encode("password123")).mobileNumber("9999999999").role(Role.ADMIN)
+					.preferredOtpChannel(OtpChannel.EMAIL).isActive(true).isVerified(true).emailVerified(true)
+					.phoneVerified(true).build();
 
 		userRepository.save(admin);
-		log.info("Admin created successfully: admin@insurance.com");
+		log.info("Admin created successfully: admin@gmail.com");
 	}
 }

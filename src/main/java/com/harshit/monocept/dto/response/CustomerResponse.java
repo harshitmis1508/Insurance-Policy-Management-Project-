@@ -16,7 +16,6 @@ import lombok.Setter;
 @Builder
 public class CustomerResponse {
 	private Long customerId;
-	// SRS 11.4: fullName, email, mobile bhi response mein chahiye
 	private String fullName;
 	private String email;
 	private String mobileNumber;

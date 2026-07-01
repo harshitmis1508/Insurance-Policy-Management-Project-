@@ -1,5 +1,6 @@
 package com.harshit.monocept.service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -24,6 +25,7 @@ import com.harshit.monocept.entity.Policy;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.ClaimStatus;
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.ResourceNotFoundException;
 import com.harshit.monocept.repository.ClaimDocumentRepository;
@@ -39,7 +41,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ClaimService {
 
-	// SRS LOG-009 to LOG-013
 	private static final Logger log = LoggerFactory.getLogger(ClaimService.class);
 
 	private final ClaimRepository claimRepository;
@@ -48,6 +49,7 @@ public class ClaimService {
 	private final PolicyRepository policyRepository;
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
+	private final AuditService auditService;
 
 	@Transactional
 	public ClaimResponse submitClaim(ClaimRequest req, String email) {
@@ -68,7 +70,6 @@ public class ClaimService {
 		}
 
 		if (policy.getStatus() != PolicyStatus.ACTIVE) {
-			// SRS LOG-015: Business rule violation
 			log.warn("Claim on non-ACTIVE policy: policyId={}, status={}", req.getPolicyId(), policy.getStatus());
 			throw new BusinessRuleException(
 					"Claims can only be raised on ACTIVE policies. Current status: " + policy.getStatus());
@@ -94,8 +95,9 @@ public class ClaimService {
 		documentRepository.saveAll(docs);
 
 		recordHistory(saved, null, ClaimStatus.SUBMITTED, "Claim submitted by customer", user);
+		auditService.record(user, "CLAIM_SUBMITTED", "CLAIM", saved.getId(),
+				"Claim submitted: " + saved.getClaimNumber());
 
-		// SRS LOG-009: Claim submission log
 		log.info("Claim submitted: claimNumber={}, policyId={}, amount={}", saved.getClaimNumber(), req.getPolicyId(),
 				req.getClaimAmount());
 
@@ -111,6 +113,10 @@ public class ClaimService {
 
 		Claim claim = claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
+
+		if (claim.getAssignedAgent() != null && !claim.getAssignedAgent().getId().equals(agent.getId())) {
+			throw new BusinessRuleException("This claim is assigned to another agent");
+		}
 
 		validateNotFinal(claim.getClaimStatus());
 
@@ -130,8 +136,8 @@ public class ClaimService {
 
 		Claim updated = claimRepository.save(claim);
 		recordHistory(updated, previous, allowed, req.getRemarks(), agent);
+		auditService.record(agent, "CLAIM_REVIEWED", "CLAIM", updated.getId(), "Agent updated claim to " + allowed);
 
-		// SRS LOG-010/011: Claim review/recommendation log
 		if (allowed == ClaimStatus.UNDER_REVIEW) {
 			log.info("Claim taken under review: claimId={}, agent={}", claimId, email);
 		} else {
@@ -165,8 +171,9 @@ public class ClaimService {
 
 		Claim updated = claimRepository.save(claim);
 		recordHistory(updated, previous, decision, req.getRemarks(), admin);
+		auditService.record(admin, decision == ClaimStatus.APPROVED ? "CLAIM_APPROVED" : "CLAIM_REJECTED", "CLAIM",
+				updated.getId(), req.getRemarks());
 
-		// SRS LOG-012/013: Final approval/rejection
 		if (decision == ClaimStatus.APPROVED) {
 			log.info("Claim APPROVED: claimId={}, claimNumber={}, admin={}", claimId, claim.getClaimNumber(), email);
 		} else {
@@ -198,18 +205,64 @@ public class ClaimService {
 		return claimRepository.findByClaimStatus(status, pageable).map(this::mapToResponse);
 	}
 
-	public ClaimResponse getClaimById(Long claimId) {
-		return mapToResponse(claimRepository.findById(claimId)
-				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId)));
+	@Transactional
+	public ClaimResponse assignClaim(Long claimId, Long agentId, String adminEmail) {
+		User admin = userRepository.findByEmail(adminEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		User agent = userRepository.findById(agentId)
+				.orElseThrow(() -> new ResourceNotFoundException("Agent not found with id: " + agentId));
+		if (agent.getRole() != Role.AGENT) {
+			throw new BusinessRuleException("Claim can be assigned only to an AGENT user");
+		}
+		if (!Boolean.TRUE.equals(agent.getIsActive())) {
+			throw new BusinessRuleException("Cannot assign claim to inactive agent");
+		}
+		Claim claim = claimRepository.findById(claimId)
+				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
+		validateNotFinal(claim.getClaimStatus());
+		claim.setAssignedAgent(agent);
+		claim.setAssignedAt(LocalDateTime.now());
+		Claim saved = claimRepository.save(claim);
+		auditService.record(admin, "CLAIM_ASSIGNED", "CLAIM", saved.getId(), "Assigned to agent: " + agent.getEmail());
+		return mapToResponse(saved);
 	}
 
-	public Page<ClaimHistoryResponse> getClaimHistory(Long claimId, Pageable pageable) {
+	public Page<ClaimResponse> getAssignedToMe(String agentEmail, Pageable pageable) {
+		User agent = userRepository.findByEmail(agentEmail)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		return claimRepository.findByAssignedAgentId(agent.getId(), pageable).map(this::mapToResponse);
+	}
+
+	public ClaimResponse getClaimById(Long claimId, String email) {
+		Claim claim = claimRepository.findById(claimId)
+				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
+		validateClaimAccessForCurrentUser(claim, email);
+		return mapToResponse(claim);
+	}
+
+	public Page<ClaimHistoryResponse> getClaimHistory(Long claimId, String email, Pageable pageable) {
 		log.debug("Fetching history for claimId: {}", claimId);
 
-		claimRepository.findById(claimId)
+		Claim claim = claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
+		validateClaimAccessForCurrentUser(claim, email);
 
 		return historyRepository.findByClaimId(claimId, pageable).map(this::mapHistoryToResponse);
+	}
+
+	private void validateClaimAccessForCurrentUser(Claim claim, String email) {
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		if (user.getRole() == Role.CUSTOMER) {
+			Customer customer = customerRepository.findByUserId(user.getId())
+					.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+			if (!claim.getPolicy().getCustomer().getId().equals(customer.getId())) {
+				log.warn("Customer {} attempted to access claimId={} owned by customerId={}", email, claim.getId(),
+						claim.getPolicy().getCustomer().getId());
+				throw new BusinessRuleException("You can only access your own claims");
+			}
+		}
 	}
 
 	private String generateClaimNumber() {
@@ -223,10 +276,8 @@ public class ClaimService {
 
 	private void validateNotFinal(ClaimStatus status) {
 		if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED) {
-			// SRS LOG-016: Attempt to modify final claim
 			log.warn("Attempt to modify final claim with status: {}", status);
-			throw new BusinessRuleException(
-					"Cannot modify a claim that is already " + status.name() + ". SRS Rule CLM-BR-009");
+			throw new BusinessRuleException("Cannot modify a claim that is already " + status.name());
 		}
 	}
 
@@ -267,8 +318,11 @@ public class ClaimService {
 				.policyId(c.getPolicy().getId()).policyNumber(c.getPolicy().getPolicyNumber())
 				.customerName(c.getPolicy().getCustomer().getUser().getFullName()).claimAmount(c.getClaimAmount())
 				.claimReason(c.getClaimReason()).incidentDate(c.getIncidentDate()).claimStatus(c.getClaimStatus())
-				.agentRemarks(c.getAgentRemarks()).adminRemarks(c.getAdminRemarks()).documents(docResponses)
-				.createdAt(c.getCreatedAt()).updatedAt(c.getUpdatedAt()).build();
+				.agentRemarks(c.getAgentRemarks()).adminRemarks(c.getAdminRemarks())
+				.assignedAgentId(c.getAssignedAgent() != null ? c.getAssignedAgent().getId() : null)
+				.assignedAgentName(c.getAssignedAgent() != null ? c.getAssignedAgent().getFullName() : null)
+				.assignedAt(c.getAssignedAt()).documents(docResponses).createdAt(c.getCreatedAt())
+				.updatedAt(c.getUpdatedAt()).build();
 	}
 
 	private ClaimHistoryResponse mapHistoryToResponse(ClaimStatusHistory h) {

@@ -1,12 +1,17 @@
 package com.harshit.monocept.dto.response;
 
-import com.harshit.monocept.enums.PaymentMode;
-import com.harshit.monocept.enums.PaymentStatus;
-import lombok.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-// SRS 11.8: Payment response fields
+import com.harshit.monocept.enums.PaymentMode;
+import com.harshit.monocept.enums.PaymentStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -15,7 +20,7 @@ import java.time.LocalDateTime;
 public class PaymentResponse {
 	private Long paymentId;
 	private Long policyId;
-	private String policyNumber; // SRS 11.8
+	private String policyNumber;
 	private BigDecimal amount;
 	private LocalDateTime paymentDate;
 	private PaymentMode paymentMode;
