@@ -424,4 +424,4 @@ This project is available for educational and portfolio purposes. Add a license 
 
 ---
 
-<p align="center">Made with ☕ and Spring Boot by <b>Harshit Mishra</b> & <b>Harsh Agarwal</b></p>
+<p align="center">Made with ☕ and Spring Boot by <b>Harsh Agarwal</b> & <b>Harshit Mishra</b></p>
