@@ -78,13 +78,36 @@ public class CloudinaryService {
 	}
 
 	public void deleteFile(String publicId) {
-		if (publicId == null || publicId.isBlank())
+		if (publicId == null || publicId.isBlank()) {
+			log.warn("Cloudinary delete skipped: publicId is blank");
 			return;
+		}
+
+		log.info("Cloudinary delete attempt: publicId={}", publicId);
+
 		try {
-			cloudinary.uploader().destroy(publicId, ObjectUtils.asMap("resource_type", "auto"));
-			log.info("Deleted from Cloudinary: {}", publicId);
-		} catch (IOException e) {
-			log.warn("Delete failed for {}: {}", publicId, e.getMessage());
+			Map imageResult = cloudinary.uploader().destroy(publicId, ObjectUtils.asMap("resource_type", "image"));
+
+			Object imageStatus = imageResult.get("result");
+			log.info("Cloudinary image delete result for {}: {}", publicId, imageStatus);
+
+			if ("ok".equalsIgnoreCase(String.valueOf(imageStatus))) {
+				return;
+			}
+
+			Map rawResult = cloudinary.uploader().destroy(publicId, ObjectUtils.asMap("resource_type", "raw"));
+
+			Object rawStatus = rawResult.get("result");
+			log.info("Cloudinary raw delete result for {}: {}", publicId, rawStatus);
+
+			if (!"ok".equalsIgnoreCase(String.valueOf(rawStatus))
+					&& !"not found".equalsIgnoreCase(String.valueOf(rawStatus))) {
+				throw new RuntimeException("Cloudinary delete failed with result: " + rawStatus);
+			}
+
+		} catch (Exception e) {
+			log.error("Cloudinary delete failed for publicId={}", publicId, e);
+			throw new RuntimeException("Could not delete file from Cloudinary.", e);
 		}
 	}
 }

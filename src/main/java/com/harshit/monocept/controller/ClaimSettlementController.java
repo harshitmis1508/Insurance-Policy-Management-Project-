@@ -51,8 +51,8 @@ public class ClaimSettlementController {
 	}
 
 	@GetMapping("/claim/{claimId}")
-	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
-	public ResponseEntity<ApiResponse<ClaimSettlementResponse>> getByClaim(@PathVariable Long claimId) {
-		return ResponseEntity.ok(ApiResponse.success("Settlement fetched", settlementService.getByClaim(claimId)));
+	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT') or hasRole('CUSTOMER')")
+	public ResponseEntity<ApiResponse<ClaimSettlementResponse>> getByClaim(@PathVariable Long claimId, Authentication auth) {
+		return ResponseEntity.ok(ApiResponse.success("Settlement fetched", settlementService.getByClaim(claimId, auth.getName())));
 	}
 }

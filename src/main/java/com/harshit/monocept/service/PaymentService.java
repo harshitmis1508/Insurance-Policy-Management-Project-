@@ -63,7 +63,8 @@ public class PaymentService {
 
 	@Transactional
 	public PaymentResponse recordPaymentByAdmin(PaymentRequest req) {
-		log.info("Payment by admin/agent: policyId={}, txRef={}", req.getPolicyId(), req.getTransactionReference());
+		log.info("Payment by admin/insurance operations officer: policyId={}, txRef={}", req.getPolicyId(),
+				req.getTransactionReference());
 
 		Policy policy = policyRepository.findById(req.getPolicyId())
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + req.getPolicyId()));

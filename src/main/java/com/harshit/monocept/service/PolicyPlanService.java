@@ -94,7 +94,6 @@ public class PolicyPlanService {
 			plan.setIsActive(req.getIsActive());
 
 		PolicyPlan updated = planRepository.save(plan);
-		// SRS LOG-005
 		log.info("Plan updated: id={}, name={}", updated.getId(), updated.getPlanName());
 
 		return mapToResponse(updated);

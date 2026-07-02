@@ -19,10 +19,10 @@ public class DocumentUploadResponse {
 	private String claimNumber;
 	private String documentName;
 	private String documentType;
-	private String documentUrl; // Cloudinary URL
+	private String documentUrl; 
 	private String originalFileName;
 	private String fileFormat;
 	private Long fileSizeBytes;
-	private String fileSizeReadable; // "2.5 MB"
+	private String fileSizeReadable; 
 	private LocalDateTime uploadedAt;
 }

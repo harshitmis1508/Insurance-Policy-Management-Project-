@@ -42,8 +42,8 @@ public class PaymentController {
 	@PostMapping("/admin")
 	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')")
 	public ResponseEntity<ApiResponse<PaymentResponse>> recordByAdmin(@Valid @RequestBody PaymentRequest req) {
-		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ApiResponse.success("Payment recorded by admin/agent", paymentService.recordPaymentByAdmin(req)));
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(
+				"Payment recorded by admin/insurance operations officer", paymentService.recordPaymentByAdmin(req)));
 	}
 
 	@GetMapping("/my/{policyId}")
