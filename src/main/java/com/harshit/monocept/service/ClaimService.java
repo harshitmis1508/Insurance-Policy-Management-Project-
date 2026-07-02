@@ -1,5 +1,6 @@
 package com.harshit.monocept.service;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -75,11 +76,22 @@ public class ClaimService {
 					"Claims can only be raised on ACTIVE policies. Current status: " + policy.getStatus());
 		}
 
-		if (req.getClaimAmount().compareTo(policy.getPlan().getCoverageAmount()) > 0) {
+		BigDecimal coverageAmount = policy.getPlan().getCoverageAmount();
+		if (req.getClaimAmount().compareTo(coverageAmount) > 0) {
 			log.warn("Claim amount {} exceeds coverage {} for policyId={}", req.getClaimAmount(),
-					policy.getPlan().getCoverageAmount(), req.getPolicyId());
+					coverageAmount, req.getPolicyId());
 			throw new BusinessRuleException(
-					"Claim amount cannot exceed policy coverage amount of " + policy.getPlan().getCoverageAmount());
+					"Claim amount cannot exceed policy coverage amount of " + coverageAmount);
+		}
+
+		BigDecimal reservedClaimAmount = claimRepository.sumNonRejectedClaimAmountByPolicyId(policy.getId());
+		BigDecimal remainingCoverage = coverageAmount.subtract(reservedClaimAmount);
+		if (req.getClaimAmount().compareTo(remainingCoverage) > 0) {
+			log.warn(
+					"Claim amount {} exceeds remaining coverage {} for policyId={} (coverage={}, reserved={})",
+					req.getClaimAmount(), remainingCoverage, policy.getId(), coverageAmount, reservedClaimAmount);
+			throw new BusinessRuleException(
+					"Claim amount exceeds remaining policy coverage amount of " + remainingCoverage);
 		}
 
 		Claim claim = Claim.builder().claimNumber(generateClaimNumber()).policy(policy)
