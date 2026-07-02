@@ -64,8 +64,8 @@ public class UserController {
 	@PostMapping("/agent")
 	@PreAuthorize("hasRole('ADMIN')")
 	public ResponseEntity<ApiResponse<UserResponse>> createAgent(@Valid @RequestBody CreateAgentRequest req) {
-		return ResponseEntity.status(HttpStatus.CREATED)
-				.body(ApiResponse.success("Agent created successfully", userService.createAgent(req)));
+		return ResponseEntity.status(HttpStatus.CREATED).body(
+				ApiResponse.success("Insurance Operations Officer created successfully", userService.createAgent(req)));
 	}
 
 	@PatchMapping("/{userId}/status")

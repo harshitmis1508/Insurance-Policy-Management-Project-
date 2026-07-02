@@ -3,6 +3,7 @@ package com.harshit.monocept.service;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,7 @@ import com.harshit.monocept.entity.Claim;
 import com.harshit.monocept.entity.ClaimSettlement;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.ClaimStatus;
+import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.enums.SettlementStatus;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.DuplicateResourceException;
@@ -80,6 +82,21 @@ public class ClaimSettlementService {
 	public ClaimSettlementResponse getByClaim(Long claimId) {
 		return mapToResponse(settlementRepository.findByClaimId(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Settlement not found for claim id: " + claimId)));
+	}
+
+	public ClaimSettlementResponse getByClaim(Long claimId, String requesterEmail) {
+		User requester = getUser(requesterEmail);
+		ClaimSettlement settlement = settlementRepository.findByClaimId(claimId)
+				.orElseThrow(() -> new ResourceNotFoundException("Settlement not found for claim id: " + claimId));
+
+		if (requester.getRole() == Role.CUSTOMER) {
+			Long ownerUserId = settlement.getClaim().getPolicy().getCustomer().getUser().getId();
+			if (!ownerUserId.equals(requester.getId())) {
+				throw new AccessDeniedException("You are not allowed to view settlement for this claim");
+			}
+		}
+
+		return mapToResponse(settlement);
 	}
 
 	private User getUser(String email) {

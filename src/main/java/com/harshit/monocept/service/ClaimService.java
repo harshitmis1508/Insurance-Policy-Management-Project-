@@ -106,7 +106,8 @@ public class ClaimService {
 
 	@Transactional
 	public ClaimResponse reviewClaim(Long claimId, ClaimReviewRequest req, String email) {
-		log.info("Claim review attempt: claimId={}, agent={}, status={}", claimId, email, req.getRecommendedStatus());
+		log.info("Claim review attempt: claimId={}, insuranceOperationsOfficer={}, status={}", claimId, email,
+				req.getRecommendedStatus());
 
 		User agent = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -115,7 +116,7 @@ public class ClaimService {
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
 
 		if (claim.getAssignedAgent() != null && !claim.getAssignedAgent().getId().equals(agent.getId())) {
-			throw new BusinessRuleException("This claim is assigned to another agent");
+			throw new BusinessRuleException("This claim is assigned to another insurance operations officer");
 		}
 
 		validateNotFinal(claim.getClaimStatus());
@@ -123,9 +124,10 @@ public class ClaimService {
 		ClaimStatus allowed = req.getRecommendedStatus();
 		if (allowed != ClaimStatus.UNDER_REVIEW && allowed != ClaimStatus.RECOMMENDED_FOR_APPROVAL
 				&& allowed != ClaimStatus.RECOMMENDED_FOR_REJECTION) {
-			log.warn("Agent {} attempted invalid status: {}", email, allowed);
+			log.warn("Insurance Operations Officer {} attempted invalid status: {}", email, allowed);
 			throw new BusinessRuleException(
-					"Agent can only set: UNDER_REVIEW, RECOMMENDED_FOR_APPROVAL, " + "RECOMMENDED_FOR_REJECTION");
+					"Insurance Operations Officer can only set: UNDER_REVIEW, RECOMMENDED_FOR_APPROVAL, "
+							+ "RECOMMENDED_FOR_REJECTION");
 		}
 
 		validateTransition(claim.getClaimStatus(), allowed);
@@ -136,12 +138,14 @@ public class ClaimService {
 
 		Claim updated = claimRepository.save(claim);
 		recordHistory(updated, previous, allowed, req.getRemarks(), agent);
-		auditService.record(agent, "CLAIM_REVIEWED", "CLAIM", updated.getId(), "Agent updated claim to " + allowed);
+		auditService.record(agent, "CLAIM_REVIEWED", "CLAIM", updated.getId(),
+				"Insurance Operations Officer updated claim to " + allowed);
 
 		if (allowed == ClaimStatus.UNDER_REVIEW) {
-			log.info("Claim taken under review: claimId={}, agent={}", claimId, email);
+			log.info("Claim taken under review: claimId={}, insuranceOperationsOfficer={}", claimId, email);
 		} else {
-			log.info("Claim recommendation: claimId={}, status={}, agent={}", claimId, allowed, email);
+			log.info("Claim recommendation: claimId={}, status={}, insuranceOperationsOfficer={}", claimId, allowed,
+					email);
 		}
 
 		return mapToResponse(updated);
@@ -209,13 +213,13 @@ public class ClaimService {
 	public ClaimResponse assignClaim(Long claimId, Long agentId, String adminEmail) {
 		User admin = userRepository.findByEmail(adminEmail)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
-		User agent = userRepository.findById(agentId)
-				.orElseThrow(() -> new ResourceNotFoundException("Agent not found with id: " + agentId));
+		User agent = userRepository.findById(agentId).orElseThrow(
+				() -> new ResourceNotFoundException("Insurance Operations Officer not found with id: " + agentId));
 		if (agent.getRole() != Role.AGENT) {
-			throw new BusinessRuleException("Claim can be assigned only to an AGENT user");
+			throw new BusinessRuleException("Claim can be assigned only to an Insurance Operations Officer user");
 		}
 		if (!Boolean.TRUE.equals(agent.getIsActive())) {
-			throw new BusinessRuleException("Cannot assign claim to inactive agent");
+			throw new BusinessRuleException("Cannot assign claim to inactive insurance operations officer");
 		}
 		Claim claim = claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
@@ -223,7 +227,8 @@ public class ClaimService {
 		claim.setAssignedAgent(agent);
 		claim.setAssignedAt(LocalDateTime.now());
 		Claim saved = claimRepository.save(claim);
-		auditService.record(admin, "CLAIM_ASSIGNED", "CLAIM", saved.getId(), "Assigned to agent: " + agent.getEmail());
+		auditService.record(admin, "CLAIM_ASSIGNED", "CLAIM", saved.getId(),
+				"Assigned to insurance operations officer: " + agent.getEmail());
 		return mapToResponse(saved);
 	}
 

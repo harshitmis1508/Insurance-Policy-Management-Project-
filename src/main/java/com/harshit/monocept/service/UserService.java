@@ -45,10 +45,10 @@ public class UserService {
 	}
 
 	public UserResponse createAgent(CreateAgentRequest req) {
-		log.info("Agent creation attempt: email={}", req.getEmail());
+		log.info("Insurance Operations Officer creation attempt: email={}", req.getEmail());
 
 		if (userRepository.existsByEmail(req.getEmail())) {
-			log.warn("Duplicate email on agent creation: {}", req.getEmail());
+			log.warn("Duplicate email on insurance operations officer creation: {}", req.getEmail());
 			throw new DuplicateResourceException("Email already exists: " + req.getEmail());
 		}
 
@@ -58,7 +58,7 @@ public class UserService {
 				.emailVerified(true).phoneVerified(true).build();
 
 		User saved = userRepository.save(agent);
-		log.info("Agent created: id={}, email={}", saved.getId(), saved.getEmail());
+		log.info("Insurance Operations Officer created: id={}, email={}", saved.getId(), saved.getEmail());
 		return mapToResponse(saved);
 	}
 
