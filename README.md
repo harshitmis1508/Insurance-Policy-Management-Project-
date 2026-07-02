@@ -411,8 +411,9 @@ You can also test through Swagger UI (see above) or directly from a connected fr
 
 This is a **group project**, built and maintained by:
 
-- **Harshit Mishra**
 - **Harsh Agarwal**
+- **Harshit Mishra**
+
 
 Contributions, issues, and feature requests are welcome — feel free to check the [issues page](../../issues) or open a pull request.
 
