@@ -24,7 +24,7 @@ public class ClaimRequest {
 	private Long policyId;
 
 	@NotNull(message = "Claim amount is required")
-	@DecimalMin(value = "0.01", message = "Claim amount must be greater than 0")
+	@DecimalMin(value = "0.01", message = "Claim amount should be greater than 0")
 	private BigDecimal claimAmount;
 
 	@NotBlank(message = "Claim reason is required")
