@@ -11,6 +11,6 @@ import lombok.Setter;
 @Setter
 public class ClaimSettlementRequest {
 	@NotNull(message = "Approved amount is required")
-	@DecimalMin(value = "0.01", message = "Approved amount must be greater than zero")
+	@DecimalMin(value = "0.01", message = "Approved amount should be greater than zero")
 	private BigDecimal approvedAmount;
 }
