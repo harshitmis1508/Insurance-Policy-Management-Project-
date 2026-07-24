@@ -1,5 +1,7 @@
 package com.harshit.monocept.service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -18,6 +20,7 @@ import com.harshit.monocept.entity.Policy;
 import com.harshit.monocept.entity.PolicyPlan;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.PremiumFrequency;
 import com.harshit.monocept.enums.PremiumType;
 import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.exception.BusinessRuleException;
@@ -65,11 +68,12 @@ public class PolicyService {
 			throw new BusinessRuleException("Cannot purchase plan of an inactive product");
 		}
 
-		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate()));
+		Policy policy = policyRepository
+				.save(buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency()));
 
 		// SRS LOG-006: Policy purchase log
-		log.info("Policy purchased: policyNumber={}, customer={}, planId={}", policy.getPolicyNumber(), email,
-				req.getPlanId());
+		log.info("Policy purchased: policyNumber={}, customer={}, planId={}, frequency={}", policy.getPolicyNumber(),
+				email, req.getPlanId(), policy.getPremiumFrequency());
 
 		return mapToResponse(policy);
 	}
@@ -94,11 +98,12 @@ public class PolicyService {
 			throw new BusinessRuleException("Cannot issue plan of an inactive product");
 		}
 
-		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate()));
+		Policy policy = policyRepository
+				.save(buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency()));
 
 		// SRS LOG-007: Policy issuance log
-		log.info("Policy issued: policyNumber={}, customerId={}, planId={}", policy.getPolicyNumber(),
-				req.getCustomerId(), req.getPlanId());
+		log.info("Policy issued: policyNumber={}, customerId={}, planId={}, frequency={}", policy.getPolicyNumber(),
+				req.getCustomerId(), req.getPlanId(), policy.getPremiumFrequency());
 
 		return mapToResponse(policy);
 	}
@@ -189,11 +194,32 @@ public class PolicyService {
 		return number;
 	}
 
-	private Policy buildPolicy(Customer customer, PolicyPlan plan, LocalDate startDate) {
+	private Policy buildPolicy(Customer customer, PolicyPlan plan, LocalDate startDate,
+			PremiumFrequency requestedFrequency) {
+
+		PremiumFrequency frequency = null;
+		BigDecimal installmentAmount;
+		Integer totalInstallmentsDue;
+
+		if (plan.getPremiumType() == PremiumType.ONE_TIME) {
+			// One-time premium: paid fully once, no EMI split (real life: e.g. a
+			// single-trip travel policy)
+			installmentAmount = plan.getPremiumAmount();
+			totalInstallmentsDue = 1;
+		} else {
+			if (requestedFrequency == null) {
+				throw new BusinessRuleException(
+						"Please select a premium payment frequency (Monthly / Quarterly / Half-Yearly / Annual) for this plan");
+			}
+			frequency = requestedFrequency;
+			installmentAmount = calculateInstallmentAmount(plan.getPremiumAmount(), frequency);
+			totalInstallmentsDue = frequency.getInstallmentsPerYear() * plan.getDurationYears();
+		}
 
 		Policy.PolicyBuilder builder = Policy.builder().policyNumber(generatePolicyNumber()).customer(customer)
 				.plan(plan).startDate(startDate).endDate(startDate.plusYears(plan.getDurationYears()))
-				.status(PolicyStatus.PENDING_PAYMENT).premiumsPaid(0);
+				.status(PolicyStatus.PENDING_PAYMENT).premiumsPaid(0).premiumFrequency(frequency)
+				.installmentAmount(installmentAmount).totalInstallmentsDue(totalInstallmentsDue);
 
 		if (plan.getPremiumType() == PremiumType.ANNUAL) {
 			builder.nextPremiumDueDate(startDate);
@@ -202,14 +228,22 @@ public class PolicyService {
 		return builder.build();
 	}
 
+	// Core EMI formula: annual premium + frequency loading, split evenly across
+	// installments
+	private BigDecimal calculateInstallmentAmount(BigDecimal annualPremium, PremiumFrequency frequency) {
+		BigDecimal loadedAnnual = annualPremium.multiply(BigDecimal.ONE.add(frequency.getLoadingFactor()));
+		return loadedAnnual.divide(BigDecimal.valueOf(frequency.getInstallmentsPerYear()), 2, RoundingMode.HALF_UP);
+	}
+
 	public PolicyResponse mapToResponse(Policy p) {
 		return PolicyResponse.builder().policyId(p.getId()).policyNumber(p.getPolicyNumber())
 				.customerId(p.getCustomer().getId()).customerName(p.getCustomer().getUser().getFullName())
 				.planId(p.getPlan().getId()).planName(p.getPlan().getPlanName())
 				.productType(p.getPlan().getProduct().getProductType()).coverageAmount(p.getPlan().getCoverageAmount())
 				.premiumAmount(p.getPlan().getPremiumAmount()).premiumType(p.getPlan().getPremiumType())
-				.startDate(p.getStartDate()).endDate(p.getEndDate()).status(p.getStatus())
-				.totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
+				.premiumFrequency(p.getPremiumFrequency()).installmentAmount(p.getInstallmentAmount())
+				.totalInstallmentsDue(p.getTotalInstallmentsDue()).startDate(p.getStartDate()).endDate(p.getEndDate())
+				.status(p.getStatus()).totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
 				.nextPremiumDueDate(p.getNextPremiumDueDate()).durationYears(p.getPlan().getDurationYears())
 				.createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt()).build();
 	}

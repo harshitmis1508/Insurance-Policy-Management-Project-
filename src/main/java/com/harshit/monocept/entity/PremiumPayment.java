@@ -58,6 +58,13 @@ public class PremiumPayment {
 	private PaymentStatus paymentStatus;
 
 	private LocalDateTime createdAt;
+	
+	private String razorpayOrderId;
+
+	private String razorpayPaymentId;
+
+	@Column(length = 500)
+	private String razorpaySignature;
 
 	@PrePersist
 	protected void onCreate() {

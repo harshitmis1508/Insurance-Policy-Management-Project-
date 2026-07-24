@@ -37,22 +37,18 @@ public class ClaimDocumentService {
 	private final UserRepository userRepository;
 	private final CloudinaryService cloudinaryService;
 
-	// ✅ Upload document for a claim
 	@Transactional
 	public DocumentUploadResponse uploadDocument(Long claimId, String documentName, String documentType,
 			MultipartFile file, String email) {
 
 		log.info("Document upload: claimId={}, type={}, user={}", claimId, documentType, email);
 
-		// Claim exist karta hai?
 		Claim claim = claimRepository.findById(claimId)
 				.orElseThrow(() -> new ResourceNotFoundException("Claim not found with id: " + claimId));
 
-		// User exist karta hai?
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		// SRS CLM-BR-006: Customer sirf apni claim pe document upload kare
 		if (user.getRole().name().equals("CUSTOMER")) {
 			Customer customer = customerRepository.findByUserId(user.getId())
 					.orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
@@ -61,7 +57,6 @@ public class ClaimDocumentService {
 				throw new BusinessRuleException("You can only upload documents for your own claims");
 		}
 
-		// SRS CLM-BR-009: APPROVED/REJECTED claim mein document add nahi
 		if (claim.getClaimStatus() == ClaimStatus.APPROVED || claim.getClaimStatus() == ClaimStatus.REJECTED)
 			throw new BusinessRuleException(
 					"Cannot upload documents for a " + claim.getClaimStatus().name() + " claim");

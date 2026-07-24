@@ -27,7 +27,7 @@ public class CustomerRequest {
 
 		if (dateOfBirth == null) {
 			return true;
-			// @NotNull will handle null separately
+			
 		}
 
 		return !dateOfBirth.plusYears(18).isAfter(LocalDate.now());

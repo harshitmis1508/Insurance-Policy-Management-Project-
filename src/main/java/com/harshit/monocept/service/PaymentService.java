@@ -1,5 +1,7 @@
 package com.harshit.monocept.service;
 
+
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import org.slf4j.Logger;
@@ -10,11 +12,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.harshit.monocept.dto.request.PaymentRequest;
+import com.harshit.monocept.dto.request.RazorpayVerifyRequest;
 import com.harshit.monocept.dto.response.PaymentResponse;
+import com.harshit.monocept.dto.response.RazorpayOrderResponse;
 import com.harshit.monocept.entity.Customer;
 import com.harshit.monocept.entity.Policy;
 import com.harshit.monocept.entity.PremiumPayment;
 import com.harshit.monocept.entity.User;
+import com.harshit.monocept.enums.PaymentMode;
 import com.harshit.monocept.enums.PaymentStatus;
 import com.harshit.monocept.enums.PolicyStatus;
 import com.harshit.monocept.enums.PremiumType;
@@ -25,6 +30,7 @@ import com.harshit.monocept.repository.CustomerRepository;
 import com.harshit.monocept.repository.PaymentRepository;
 import com.harshit.monocept.repository.PolicyRepository;
 import com.harshit.monocept.repository.UserRepository;
+import com.razorpay.Order;
 
 import lombok.RequiredArgsConstructor;
 
@@ -38,6 +44,91 @@ public class PaymentService {
 	private final PolicyRepository policyRepository;
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
+	private final RazorpayService razorpayService;
+
+	@Transactional
+	public RazorpayOrderResponse initiateGatewayPayment(Long policyId, String email) {
+		log.info("Razorpay order initiation: policyId={}, email={}", policyId, email);
+
+		Policy policy = policyRepository.findById(policyId)
+				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + policyId));
+
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		Customer customer = customerRepository.findByUserId(user.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+
+		if (!policy.getCustomer().getId().equals(customer.getId())) {
+			throw new BusinessRuleException("You can only pay for your own policies");
+		}
+
+		if (policy.getStatus() == PolicyStatus.CANCELLED) {
+			throw new BusinessRuleException("Cannot make payment for a cancelled policy");
+		}
+		if (policy.getStatus() == PolicyStatus.EXPIRED) {
+			throw new BusinessRuleException("Cannot make payment for an expired policy");
+		}
+
+		PremiumType premiumType = policy.getPlan().getPremiumType();
+		if (premiumType == PremiumType.ONE_TIME && policy.getTotalPremiumPaid().compareTo(BigDecimal.ZERO) > 0) {
+			throw new BusinessRuleException("One-time premium already paid");
+		}
+		if (premiumType == PremiumType.ANNUAL && policy.getPremiumsPaid() >= policy.getTotalInstallmentsDue()) {
+			throw new BusinessRuleException("All premium installments already paid");
+		}
+
+		Order order = razorpayService.createOrder(policy);
+
+		return RazorpayOrderResponse.builder().razorpayOrderId(order.get("id").toString())
+				.razorpayKeyId(razorpayService.getKeyId()).amount(policy.getInstallmentAmount())
+				.amountInPaise(Long.valueOf(order.get("amount").toString())).currency(order.get("currency").toString())
+				.policyId(policy.getId()).policyNumber(policy.getPolicyNumber()).customerName(user.getFullName())
+				.customerEmail(user.getEmail()).customerPhone(user.getMobileNumber()).build();
+	}
+
+	@Transactional
+	public PaymentResponse verifyGatewayPayment(RazorpayVerifyRequest req, String email) {
+		log.info("Razorpay verify attempt: policyId={}, orderId={}", req.getPolicyId(), req.getRazorpayOrderId());
+
+		Policy policy = policyRepository.findById(req.getPolicyId())
+				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + req.getPolicyId()));
+
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		Customer customer = customerRepository.findByUserId(user.getId())
+				.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
+
+		if (!policy.getCustomer().getId().equals(customer.getId())) {
+			throw new BusinessRuleException("You can only pay for your own policies");
+		}
+
+		boolean valid = razorpayService.verifySignature(req.getRazorpayOrderId(), req.getRazorpayPaymentId(),
+				req.getRazorpaySignature());
+
+		if (!valid) {
+			log.warn("Razorpay signature verification FAILED: policyId={}, paymentId={}", req.getPolicyId(),
+					req.getRazorpayPaymentId());
+			throw new BusinessRuleException(
+					"Payment verification failed. If money was deducted, it will be auto-refunded within a few days.");
+		}
+
+		PaymentRequest internalReq = new PaymentRequest();
+		internalReq.setPolicyId(policy.getId());
+		internalReq.setAmount(policy.getInstallmentAmount());
+		internalReq.setPaymentMode(PaymentMode.ONLINE);
+		internalReq.setTransactionReference(req.getRazorpayPaymentId());
+		internalReq.setPaymentStatus(PaymentStatus.SUCCESS);
+		internalReq.setRazorpayOrderId(req.getRazorpayOrderId());
+		internalReq.setRazorpayPaymentId(req.getRazorpayPaymentId());
+		internalReq.setRazorpaySignature(req.getRazorpaySignature());
+
+		log.info("Razorpay payment verified successfully: policyId={}, paymentId={}", req.getPolicyId(),
+				req.getRazorpayPaymentId());
+
+		return processPayment(internalReq, policy);
+	}
 
 	@Transactional
 	public PaymentResponse recordPayment(PaymentRequest req, String email) {
@@ -115,23 +206,26 @@ public class PaymentService {
 			throw new DuplicateResourceException(
 					"Transaction reference already exists: " + req.getTransactionReference());
 		}
-		if (req.getAmount().compareTo(policy.getPlan().getPremiumAmount()) != 0) {
-			throw new BusinessRuleException("Payment amount must match premium amount");
+
+		// Amount must match the policy's own installment amount (EMI), not the plan's
+		// flat annual figure
+		if (req.getAmount().compareTo(policy.getInstallmentAmount()) != 0) {
+			throw new BusinessRuleException(
+					"Payment amount must match the due installment amount of " + policy.getInstallmentAmount());
 		}
 
-		if (premiumType == PremiumType.ONE_TIME
-				&& policy.getTotalPremiumPaid().compareTo(java.math.BigDecimal.ZERO) > 0) {
+		if (premiumType == PremiumType.ONE_TIME && policy.getTotalPremiumPaid().compareTo(BigDecimal.ZERO) > 0) {
 
 			throw new BusinessRuleException("One-time premium already paid");
 		}
 
-		if (premiumType == PremiumType.ANNUAL && policy.getPremiumsPaid() >= policy.getPlan().getDurationYears()) {
+		if (premiumType == PremiumType.ANNUAL && policy.getPremiumsPaid() >= policy.getTotalInstallmentsDue()) {
 
-			throw new BusinessRuleException("All annual premiums already paid");
+			throw new BusinessRuleException("All premium installments already paid");
 		}
 
 		if (premiumType == PremiumType.ANNUAL && req.getPaymentStatus() == PaymentStatus.SUCCESS) {
-			validateAnnualPremiumPaymentWindow(policy);
+			validatePremiumPaymentWindow(policy);
 		}
 
 		if (policy.getStatus() == PolicyStatus.CANCELLED) {
@@ -146,7 +240,8 @@ public class PaymentService {
 
 		PremiumPayment payment = PremiumPayment.builder().policy(policy).amount(req.getAmount())
 				.paymentMode(req.getPaymentMode()).transactionReference(req.getTransactionReference())
-				.paymentStatus(req.getPaymentStatus()).build();
+				.paymentStatus(req.getPaymentStatus()).razorpayOrderId(req.getRazorpayOrderId())
+				.razorpayPaymentId(req.getRazorpayPaymentId()).razorpaySignature(req.getRazorpaySignature()).build();
 
 		PremiumPayment saved = paymentRepository.save(payment);
 
@@ -168,10 +263,12 @@ public class PaymentService {
 
 				policy.setStatus(PolicyStatus.ACTIVE);
 
+				int monthsToAdd = policy.getPremiumFrequency().getMonthsPerInstallment();
+
 				if (policy.getNextPremiumDueDate() == null) {
-					policy.setNextPremiumDueDate(LocalDate.now().plusYears(1));
+					policy.setNextPremiumDueDate(LocalDate.now().plusMonths(monthsToAdd));
 				} else {
-					policy.setNextPremiumDueDate(policy.getNextPremiumDueDate().plusYears(1));
+					policy.setNextPremiumDueDate(policy.getNextPremiumDueDate().plusMonths(monthsToAdd));
 				}
 			}
 
@@ -184,7 +281,7 @@ public class PaymentService {
 		return mapToResponse(saved);
 	}
 
-	private void validateAnnualPremiumPaymentWindow(Policy policy) {
+	private void validatePremiumPaymentWindow(Policy policy) {
 		if (policy.getPremiumsPaid() == null || policy.getPremiumsPaid() == 0
 				|| policy.getStatus() == PolicyStatus.PENDING_PAYMENT) {
 			return;
@@ -192,15 +289,20 @@ public class PaymentService {
 
 		LocalDate nextDueDate = policy.getNextPremiumDueDate();
 		if (nextDueDate == null) {
-			throw new BusinessRuleException("Next premium due date is not available for this annual policy");
+			throw new BusinessRuleException("Next premium due date is not available for this policy");
 		}
 
-		LocalDate paymentWindowStart = nextDueDate.minusMonths(1);
+		// Payment window opens proportionally earlier for longer cycles (1 week per
+		// month of the cycle)
+		int periodMonths = policy.getPremiumFrequency().getMonthsPerInstallment();
+		long windowDays = (long) periodMonths * 7;
+
+		LocalDate paymentWindowStart = nextDueDate.minusDays(windowDays);
 		LocalDate today = LocalDate.now();
 
 		if (today.isBefore(paymentWindowStart)) {
-			throw new BusinessRuleException("Next annual premium can be paid only from " + paymentWindowStart
-					+ " onwards. Your next premium due date is " + nextDueDate);
+			throw new BusinessRuleException("Next premium installment can be paid only from " + paymentWindowStart
+					+ " onwards. Your next due date is " + nextDueDate);
 		}
 	}
 

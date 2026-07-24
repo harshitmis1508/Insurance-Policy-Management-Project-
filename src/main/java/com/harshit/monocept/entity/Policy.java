@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.PremiumFrequency;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -67,6 +68,14 @@ public class Policy {
 	private Integer premiumsPaid = 0;
 
 	private LocalDate nextPremiumDueDate;
+	
+	@Enumerated(EnumType.STRING)
+	private PremiumFrequency premiumFrequency;
+
+	@Column(precision = 15, scale = 2)
+	private BigDecimal installmentAmount;
+
+	private Integer totalInstallmentsDue;
 
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;

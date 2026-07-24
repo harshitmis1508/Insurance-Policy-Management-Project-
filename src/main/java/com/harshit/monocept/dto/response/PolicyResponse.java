@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.PremiumFrequency;
 import com.harshit.monocept.enums.PremiumType;
 import com.harshit.monocept.enums.ProductType;
 
@@ -36,6 +37,9 @@ public class PolicyResponse {
 	private BigDecimal totalPremiumPaid;
 	private Integer premiumsPaid;
 	private LocalDate nextPremiumDueDate;
+	private PremiumFrequency premiumFrequency;
+	private BigDecimal installmentAmount;
+	private Integer totalInstallmentsDue;
 	private Integer durationYears;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;

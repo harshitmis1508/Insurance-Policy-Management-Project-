@@ -2,11 +2,9 @@ package com.harshit.monocept.dto.request;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.List;
 
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import lombok.AllArgsConstructor;
@@ -33,22 +31,4 @@ public class ClaimRequest {
 	@NotNull(message = "Incident date is required")
 	@PastOrPresent(message = "Incident date cannot be a future date")
 	private LocalDate incidentDate;
-
-	@NotEmpty(message = "At least one supporting document is required")
-	private List<DocumentRequest> documents;
-
-	@Getter
-	@Setter
-	@NoArgsConstructor
-	@AllArgsConstructor
-	public static class DocumentRequest {
-		@NotBlank(message = "Document name is required")
-		private String documentName;
-
-		@NotBlank(message = "Document type is required")
-		private String documentType;
-
-		@NotBlank(message = "Document reference is required")
-		private String documentReference;
-	}
 }

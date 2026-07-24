@@ -2,6 +2,8 @@ package com.harshit.monocept.dto.request;
 
 import java.time.LocalDate;
 
+import com.harshit.monocept.enums.PremiumFrequency;
+
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -21,4 +23,7 @@ public class PolicyPurchaseRequest {
 	@NotNull(message = "Start date is required")
 	@FutureOrPresent(message = "Start date cannot be in the past")
 	private LocalDate startDate;
+
+	// Required only when the chosen plan's premiumType is ANNUAL
+	private PremiumFrequency premiumFrequency;
 }

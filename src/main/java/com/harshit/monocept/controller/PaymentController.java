@@ -1,6 +1,7 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
+
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,9 @@ import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import com.harshit.monocept.dto.request.RazorpayOrderRequest;
+import com.harshit.monocept.dto.request.RazorpayVerifyRequest;
+import com.harshit.monocept.dto.response.RazorpayOrderResponse;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -37,6 +41,22 @@ public class PaymentController {
 			Authentication auth) {
 		return ResponseEntity.status(HttpStatus.CREATED)
 				.body(ApiResponse.success("Payment recorded", paymentService.recordPayment(req, auth.getName())));
+	}
+	
+	@PostMapping("/razorpay/create-order")
+	@PreAuthorize("hasRole('CUSTOMER')")
+	public ResponseEntity<ApiResponse<RazorpayOrderResponse>> createRazorpayOrder(
+			@Valid @RequestBody RazorpayOrderRequest req, Authentication auth) {
+		return ResponseEntity.ok(ApiResponse.success("Razorpay order created",
+				paymentService.initiateGatewayPayment(req.getPolicyId(), auth.getName())));
+	}
+
+	@PostMapping("/razorpay/verify")
+	@PreAuthorize("hasRole('CUSTOMER')")
+	public ResponseEntity<ApiResponse<PaymentResponse>> verifyRazorpayPayment(
+			@Valid @RequestBody RazorpayVerifyRequest req, Authentication auth) {
+		return ResponseEntity.status(HttpStatus.CREATED).body(
+				ApiResponse.success("Payment verified and recorded", paymentService.verifyGatewayPayment(req, auth.getName())));
 	}
 
 	@PostMapping("/admin")
