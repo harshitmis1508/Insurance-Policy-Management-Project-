@@ -4,15 +4,21 @@ import java.math.BigDecimal;
 
 public enum PremiumFrequency {
 
-	ANNUAL(1, new BigDecimal("-0.02")), HALF_YEARLY(2, new BigDecimal("-0.01")), QUARTERLY(4, BigDecimal.ZERO),
-	MONTHLY(12, new BigDecimal("0.03"));
+	// Negative factor = discount/rebate, positive factor = loading (extra charge)
+	// gracePeriodDays: real-world standard — monthly gets a shorter grace window,
+	// everything else gets the standard 30-day grace window (matches LIC's
+	// convention)
+	ANNUAL(1, new BigDecimal("-0.02"), 30), HALF_YEARLY(2, new BigDecimal("-0.01"), 30),
+	QUARTERLY(4, BigDecimal.ZERO, 30), MONTHLY(12, new BigDecimal("0.03"), 15);
 
 	private final int installmentsPerYear;
 	private final BigDecimal loadingFactor;
+	private final int gracePeriodDays;
 
-	PremiumFrequency(int installmentsPerYear, BigDecimal loadingFactor) {
+	PremiumFrequency(int installmentsPerYear, BigDecimal loadingFactor, int gracePeriodDays) {
 		this.installmentsPerYear = installmentsPerYear;
 		this.loadingFactor = loadingFactor;
+		this.gracePeriodDays = gracePeriodDays;
 	}
 
 	public int getInstallmentsPerYear() {
@@ -21,6 +27,10 @@ public enum PremiumFrequency {
 
 	public BigDecimal getLoadingFactor() {
 		return loadingFactor;
+	}
+
+	public int getGracePeriodDays() {
+		return gracePeriodDays;
 	}
 
 	public int getMonthsPerInstallment() {

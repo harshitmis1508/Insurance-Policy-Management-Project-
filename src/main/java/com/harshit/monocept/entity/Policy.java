@@ -76,6 +76,8 @@ public class Policy {
 	private BigDecimal installmentAmount;
 
 	private Integer totalInstallmentsDue;
+	
+	private LocalDate lapsedAt;
 
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;

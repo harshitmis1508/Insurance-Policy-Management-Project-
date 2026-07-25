@@ -1,5 +1,6 @@
 package com.harshit.monocept.repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -19,4 +20,8 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 	Page<Policy> findByCustomerId(Long customerId, Pageable pageable);
 
 	Page<Policy> findByStatus(PolicyStatus status, Pageable pageable);
+
+	// Used by the daily lapse-check job — only ANNUAL (EMI) policies have a due
+	// date to check
+	List<Policy> findByStatusAndNextPremiumDueDateIsNotNull(PolicyStatus status);
 }

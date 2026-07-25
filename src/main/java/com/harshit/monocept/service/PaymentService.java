@@ -1,6 +1,5 @@
 package com.harshit.monocept.service;
 
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -224,6 +223,8 @@ public class PaymentService {
 			throw new BusinessRuleException("All premium installments already paid");
 		}
 
+		// LAPSED policies skip the "too early" window check entirely — they're
+		// overdue, not early, so revival payment is allowed immediately
 		if (premiumType == PremiumType.ANNUAL && req.getPaymentStatus() == PaymentStatus.SUCCESS) {
 			validatePremiumPaymentWindow(policy);
 		}
@@ -250,6 +251,8 @@ public class PaymentService {
 
 		if (req.getPaymentStatus() == PaymentStatus.SUCCESS) {
 
+			boolean wasLapsed = policy.getStatus() == PolicyStatus.LAPSED;
+
 			policy.setTotalPremiumPaid(policy.getTotalPremiumPaid().add(req.getAmount()));
 
 			if (premiumType == PremiumType.ONE_TIME) {
@@ -262,6 +265,7 @@ public class PaymentService {
 				policy.setPremiumsPaid(policy.getPremiumsPaid() + 1);
 
 				policy.setStatus(PolicyStatus.ACTIVE);
+				policy.setLapsedAt(null);
 
 				int monthsToAdd = policy.getPremiumFrequency().getMonthsPerInstallment();
 
@@ -273,6 +277,10 @@ public class PaymentService {
 			}
 
 			policyRepository.save(policy);
+
+			if (wasLapsed) {
+				log.info("Policy revived from LAPSED: policyNumber={}", policy.getPolicyNumber());
+			}
 		} else {
 			log.warn("Payment {} for policyId={}: policy remains {}", req.getPaymentStatus(), policy.getId(),
 					policy.getStatus());
@@ -284,6 +292,12 @@ public class PaymentService {
 	private void validatePremiumPaymentWindow(Policy policy) {
 		if (policy.getPremiumsPaid() == null || policy.getPremiumsPaid() == 0
 				|| policy.getStatus() == PolicyStatus.PENDING_PAYMENT) {
+			return;
+		}
+
+		// Overdue/lapsed policies can be paid immediately — no "too early" restriction
+		// applies
+		if (policy.getStatus() == PolicyStatus.LAPSED) {
 			return;
 		}
 
