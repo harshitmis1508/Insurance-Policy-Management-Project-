@@ -1,7 +1,6 @@
 package com.harshit.monocept.controller;
 
 import org.springframework.data.domain.Page;
-
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,17 +15,17 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.harshit.monocept.dto.request.PaymentRequest;
+import com.harshit.monocept.dto.request.RazorpayOrderRequest;
+import com.harshit.monocept.dto.request.RazorpayVerifyRequest;
 import com.harshit.monocept.dto.response.ApiResponse;
 import com.harshit.monocept.dto.response.PagedResponse;
 import com.harshit.monocept.dto.response.PaymentResponse;
+import com.harshit.monocept.dto.response.RazorpayOrderResponse;
 import com.harshit.monocept.service.PaymentService;
 import com.harshit.monocept.util.PaginationUtil;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import com.harshit.monocept.dto.request.RazorpayOrderRequest;
-import com.harshit.monocept.dto.request.RazorpayVerifyRequest;
-import com.harshit.monocept.dto.response.RazorpayOrderResponse;
 
 @RestController
 @RequestMapping("/api/payments")
@@ -36,13 +35,13 @@ public class PaymentController {
 	private final PaymentService paymentService;
 
 	@PostMapping
-	@PreAuthorize("hasRole('CUSTOMER')")
+	@PreAuthorize("hasRole('ADMIN') or hasRole('AGENT')") 
 	public ResponseEntity<ApiResponse<PaymentResponse>> recordPayment(@Valid @RequestBody PaymentRequest req,
 			Authentication auth) {
 		return ResponseEntity.status(HttpStatus.CREATED)
 				.body(ApiResponse.success("Payment recorded", paymentService.recordPayment(req, auth.getName())));
 	}
-	
+
 	@PostMapping("/razorpay/create-order")
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<RazorpayOrderResponse>> createRazorpayOrder(
@@ -55,8 +54,8 @@ public class PaymentController {
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<PaymentResponse>> verifyRazorpayPayment(
 			@Valid @RequestBody RazorpayVerifyRequest req, Authentication auth) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(
-				ApiResponse.success("Payment verified and recorded", paymentService.verifyGatewayPayment(req, auth.getName())));
+		return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Payment verified and recorded",
+				paymentService.verifyGatewayPayment(req, auth.getName())));
 	}
 
 	@PostMapping("/admin")

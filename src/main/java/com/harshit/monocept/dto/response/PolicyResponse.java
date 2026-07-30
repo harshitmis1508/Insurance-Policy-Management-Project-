@@ -43,4 +43,13 @@ public class PolicyResponse {
 	private Integer durationYears;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
+	// Required only when the chosen plan's product type is MOTOR
+	private String vehicleRegistrationNumber;
+	private String vehicleMake;
+	private String vehicleModel;
+	private Integer vehicleManufactureYear;
+	private BigDecimal calculatedIdv;
+	private Integer ncbPercentage;
+	private Integer vehicleAgeAtPurchase;
+	private Integer depreciationPercentApplied;
 }

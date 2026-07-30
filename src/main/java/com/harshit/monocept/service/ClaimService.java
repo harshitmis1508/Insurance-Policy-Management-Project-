@@ -78,7 +78,9 @@ public class ClaimService {
 					"Claims can only be raised on ACTIVE policies. Current status: " + policy.getStatus());
 		}
 
-		BigDecimal coverageAmount = policy.getPlan().getCoverageAmount();
+		// MOTOR policies are capped by the calculated IDV, not the plan's base coverage
+		BigDecimal coverageAmount = policy.getCalculatedIdv() != null ? policy.getCalculatedIdv()
+				: policy.getPlan().getCoverageAmount();
 		if (req.getClaimAmount().compareTo(coverageAmount) > 0) {
 			log.warn("Claim amount {} exceeds coverage {} for policyId={}", req.getClaimAmount(), coverageAmount,
 					req.getPolicyId());
@@ -346,6 +348,8 @@ public class ClaimService {
 
 		return ClaimResponse.builder().claimId(c.getId()).claimNumber(c.getClaimNumber())
 				.policyId(c.getPolicy().getId()).policyNumber(c.getPolicy().getPolicyNumber())
+				.planName(c.getPolicy().getPlan().getPlanName())
+				.productType(c.getPolicy().getPlan().getProduct().getProductType().name())
 				.customerName(c.getPolicy().getCustomer().getUser().getFullName()).claimAmount(c.getClaimAmount())
 				.claimReason(c.getClaimReason()).incidentDate(c.getIncidentDate()).claimStatus(c.getClaimStatus())
 				.agentRemarks(c.getAgentRemarks()).adminRemarks(c.getAdminRemarks())

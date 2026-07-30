@@ -24,7 +24,6 @@ import com.harshit.monocept.repository.ClaimSettlementRepository;
 import com.harshit.monocept.repository.UserRepository;
 
 import lombok.RequiredArgsConstructor;
-
 @Service
 @RequiredArgsConstructor
 public class ClaimSettlementService {

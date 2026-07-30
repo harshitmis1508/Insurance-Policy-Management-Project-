@@ -1,6 +1,7 @@
 package com.harshit.monocept.service;
 
 import java.math.BigDecimal;
+
 import java.time.LocalDate;
 
 import org.slf4j.Logger;
@@ -131,22 +132,11 @@ public class PaymentService {
 
 	@Transactional
 	public PaymentResponse recordPayment(PaymentRequest req, String email) {
-		log.info("Payment attempt by customer: email={}, policyId={}, txRef={}", email, req.getPolicyId(),
+		log.info("Manual payment recorded by admin/agent: email={}, policyId={}, txRef={}", email, req.getPolicyId(),
 				req.getTransactionReference());
 
 		Policy policy = policyRepository.findById(req.getPolicyId())
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + req.getPolicyId()));
-
-		User user = userRepository.findByEmail(email)
-				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-		Customer customer = customerRepository.findByUserId(user.getId())
-				.orElseThrow(() -> new ResourceNotFoundException("Customer profile not found"));
-
-		if (!policy.getCustomer().getId().equals(customer.getId())) {
-			log.warn("Customer {} trying to pay for another customer's policy: {}", email, req.getPolicyId());
-			throw new BusinessRuleException("You can only make payments for your own policies");
-		}
 
 		return processPayment(req, policy);
 	}
@@ -206,8 +196,6 @@ public class PaymentService {
 					"Transaction reference already exists: " + req.getTransactionReference());
 		}
 
-		// Amount must match the policy's own installment amount (EMI), not the plan's
-		// flat annual figure
 		if (req.getAmount().compareTo(policy.getInstallmentAmount()) != 0) {
 			throw new BusinessRuleException(
 					"Payment amount must match the due installment amount of " + policy.getInstallmentAmount());
@@ -223,8 +211,6 @@ public class PaymentService {
 			throw new BusinessRuleException("All premium installments already paid");
 		}
 
-		// LAPSED policies skip the "too early" window check entirely — they're
-		// overdue, not early, so revival payment is allowed immediately
 		if (premiumType == PremiumType.ANNUAL && req.getPaymentStatus() == PaymentStatus.SUCCESS) {
 			validatePremiumPaymentWindow(policy);
 		}
@@ -295,8 +281,6 @@ public class PaymentService {
 			return;
 		}
 
-		// Overdue/lapsed policies can be paid immediately — no "too early" restriction
-		// applies
 		if (policy.getStatus() == PolicyStatus.LAPSED) {
 			return;
 		}
@@ -306,8 +290,6 @@ public class PaymentService {
 			throw new BusinessRuleException("Next premium due date is not available for this policy");
 		}
 
-		// Payment window opens proportionally earlier for longer cycles (1 week per
-		// month of the cycle)
 		int periodMonths = policy.getPremiumFrequency().getMonthsPerInstallment();
 		long windowDays = (long) periodMonths * 7;
 

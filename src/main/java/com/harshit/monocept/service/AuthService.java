@@ -39,9 +39,26 @@ public class AuthService {
 
 	@Transactional
 	public User register(RegisterRequest req) {
-		if (userRepository.existsByEmail(req.getEmail())) {
-			log.warn("Registration failed - duplicate email: {}", req.getEmail());
-			throw new DuplicateResourceException("Email already exists: " + req.getEmail());
+		var existing = userRepository.findByEmail(req.getEmail());
+
+		if (existing.isPresent()) {
+			User existingUser = existing.get();
+
+			if (Boolean.TRUE.equals(existingUser.getIsVerified())) {
+				log.warn("Registration failed - duplicate verified email: {}", req.getEmail());
+				throw new DuplicateResourceException("Email already registered. Please login instead.");
+			}
+
+			log.info("Re-registration attempt for unverified account: email={}. Resending OTP.", req.getEmail());
+
+			existingUser.setFullName(req.getFullName());
+			existingUser.setPassword(passwordEncoder.encode(req.getPassword()));
+			existingUser.setMobileNumber(req.getMobileNumber());
+			existingUser.setPreferredOtpChannel(req.getOtpChannel());
+
+			User saved = userRepository.save(existingUser);
+			otpService.createAndSendOtp(saved, req.getOtpChannel());
+			return saved;
 		}
 
 		User user = User.builder().fullName(req.getFullName()).email(req.getEmail())

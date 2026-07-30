@@ -64,10 +64,7 @@ public class RazorpayService {
 		}
 	}
 
-	/**
-	 * Verifies the signature Razorpay sends back after a successful checkout. This
-	 * is the step that proves the payment wasn't faked on the frontend.
-	 */
+
 	public boolean verifySignature(String razorpayOrderId, String razorpayPaymentId, String razorpaySignature) {
 		try {
 			JSONObject options = new JSONObject();

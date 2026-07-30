@@ -12,6 +12,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.harshit.monocept.enums.ProductType;
 
 @Getter
 @Setter
@@ -23,6 +24,8 @@ public class ClaimResponse {
 	private String claimNumber;
 	private Long policyId;
 	private String policyNumber;
+	private String planName;
+	private String productType;
 	private String customerName;
 	private BigDecimal claimAmount;
 	private String claimReason;

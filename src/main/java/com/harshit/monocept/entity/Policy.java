@@ -68,7 +68,7 @@ public class Policy {
 	private Integer premiumsPaid = 0;
 
 	private LocalDate nextPremiumDueDate;
-	
+
 	@Enumerated(EnumType.STRING)
 	private PremiumFrequency premiumFrequency;
 
@@ -76,11 +76,23 @@ public class Policy {
 	private BigDecimal installmentAmount;
 
 	private Integer totalInstallmentsDue;
-	
+
 	private LocalDate lapsedAt;
+
+	private String vehicleRegistrationNumber;
+	private String vehicleMake;
+	private String vehicleModel;
+	private Integer vehicleManufactureYear;
 
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
+
+	private BigDecimal calculatedIdv;
+	private Integer vehicleAgeAtPurchase;
+	private Integer depreciationPercentApplied;
+
+	@Builder.Default
+	private Integer ncbPercentage = 0;
 
 	@PrePersist
 	protected void onCreate() {

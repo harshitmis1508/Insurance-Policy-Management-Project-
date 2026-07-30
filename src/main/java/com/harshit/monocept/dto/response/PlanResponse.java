@@ -31,4 +31,8 @@ public class PlanResponse {
 	private Boolean isActive;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
+	private BigDecimal calculatedIdv;
+	private Integer vehicleAgeAtPurchase;
+	private Integer depreciationPercentApplied;
+	private Integer ncbPercentage;
 }

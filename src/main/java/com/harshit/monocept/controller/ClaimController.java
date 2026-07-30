@@ -44,14 +44,6 @@ public class ClaimController {
 	private final ClaimService claimService;
 	private final RiskAssessmentService riskAssessmentService;
 
-	@PostMapping
-	@PreAuthorize("hasRole('CUSTOMER')")
-	public ResponseEntity<ApiResponse<ClaimResponse>> submit(@Valid @RequestBody ClaimRequest req,
-			Authentication auth) {
-		return ResponseEntity.status(HttpStatus.CREATED).body(
-				ApiResponse.success("Claim submitted successfully", claimService.submitClaim(req, auth.getName())));
-	}
-
 	@PostMapping(value = "/with-documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	@PreAuthorize("hasRole('CUSTOMER')")
 	public ResponseEntity<ApiResponse<ClaimResponse>> submitClaimWithDocuments(

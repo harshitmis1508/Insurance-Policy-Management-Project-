@@ -26,4 +26,10 @@ public class PolicyPurchaseRequest {
 
 	// Required only when the chosen plan's premiumType is ANNUAL
 	private PremiumFrequency premiumFrequency;
+
+	// Required only when the chosen plan's product type is MOTOR
+	private String vehicleRegistrationNumber;
+	private String vehicleMake;
+	private String vehicleModel;
+	private Integer vehicleManufactureYear;
 }

@@ -17,7 +17,6 @@ public class PolicyLapseScheduler {
 
 	private final PolicyLapseService policyLapseService;
 
-	// Runs every day at 1:00 AM server time
 	@Scheduled(cron = "*/10 * * * * *")
 	public void checkForLapsedPolicies() {
 		log.info("Running daily policy lapse check...");

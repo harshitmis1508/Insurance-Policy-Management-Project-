@@ -1,6 +1,7 @@
 package com.harshit.monocept.exception;
 
 import java.util.HashMap;
+
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import com.harshit.monocept.dto.response.ErrorResponse;
 
@@ -76,6 +79,19 @@ public class GlobalExceptionHandler {
 		log.warn("File size exceeded: {}", ex.getMessage());
 		return buildError(HttpStatus.BAD_REQUEST, "FILE_SIZE_EXCEEDED",
 				"File size exceeds maximum allowed limit of 10MB", request);
+	}
+
+	@ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+	public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex,
+			HttpServletRequest request) {
+		log.warn("Unsupported HTTP method: {} {}", request.getMethod(), request.getRequestURI());
+		return buildError(HttpStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED",
+				"This HTTP method is not supported for this endpoint", request);
+	}
+
+	@ExceptionHandler(NoHandlerFoundException.class)
+	public ResponseEntity<ErrorResponse> handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
+		return buildError(HttpStatus.NOT_FOUND, "NOT_FOUND", "No endpoint found for this URL", request);
 	}
 
 	private ResponseEntity<ErrorResponse> buildError(HttpStatus status, String errorType, String message,

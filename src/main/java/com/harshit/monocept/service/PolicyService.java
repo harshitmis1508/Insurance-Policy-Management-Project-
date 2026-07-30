@@ -3,7 +3,10 @@ package com.harshit.monocept.service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.Year;
+import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +25,7 @@ import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.PolicyStatus;
 import com.harshit.monocept.enums.PremiumFrequency;
 import com.harshit.monocept.enums.PremiumType;
+import com.harshit.monocept.enums.ProductType;
 import com.harshit.monocept.enums.Role;
 import com.harshit.monocept.exception.BusinessRuleException;
 import com.harshit.monocept.exception.ResourceNotFoundException;
@@ -37,11 +41,36 @@ import lombok.RequiredArgsConstructor;
 public class PolicyService {
 
 	private static final Logger log = LoggerFactory.getLogger(PolicyService.class);
+	private static final Pattern VEHICLE_REG_PATTERN = Pattern.compile("^[A-Z]{2}[0-9]{1,2}[A-Z]{1,3}[0-9]{4}$");
+	private static final int MAX_VEHICLE_AGE_YEARS = 15;
+	private static final int MAX_TRAVEL_ADVANCE_DAYS = 90;
 
 	private final PolicyRepository policyRepository;
 	private final PolicyPlanRepository planRepository;
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
+
+	private BigDecimal getDepreciationPercent(int vehicleAgeYears) {
+		if (vehicleAgeYears <= 0)
+			return new BigDecimal("0.05");
+		if (vehicleAgeYears == 1)
+			return new BigDecimal("0.15");
+		if (vehicleAgeYears == 2)
+			return new BigDecimal("0.20");
+		if (vehicleAgeYears == 3)
+			return new BigDecimal("0.30");
+		if (vehicleAgeYears == 4)
+			return new BigDecimal("0.40");
+
+		return new BigDecimal("0.50");
+	}
+
+	private BigDecimal calculateIdv(BigDecimal baseVehicleValue, int vehicleAgeYears) {
+		BigDecimal depreciationPct = getDepreciationPercent(vehicleAgeYears);
+		BigDecimal depreciationAmount = baseVehicleValue.multiply(depreciationPct);
+
+		return baseVehicleValue.subtract(depreciationAmount).setScale(2, RoundingMode.HALF_UP);
+	}
 
 	@Transactional
 	public PolicyResponse purchasePolicy(PolicyPurchaseRequest req, String email) {
@@ -67,11 +96,49 @@ public class PolicyService {
 			log.warn("Purchase attempt on inactive product: productId={}", plan.getProduct().getId());
 			throw new BusinessRuleException("Cannot purchase plan of an inactive product");
 		}
+		List<PolicyStatus> activeLikeStatuses = List.of(PolicyStatus.PENDING_PAYMENT, PolicyStatus.ACTIVE,
+				PolicyStatus.LAPSED);
 
-		Policy policy = policyRepository
-				.save(buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency()));
+		if (plan.getProduct().getProductType() == ProductType.MOTOR) {
 
-		// SRS LOG-006: Policy purchase log
+			String regNo = req.getVehicleRegistrationNumber().trim().toUpperCase().replaceAll("\\s+", "");
+
+			boolean vehicleAlreadyInsured = policyRepository.existsByVehicleRegistrationNumberAndStatusIn(regNo,
+					activeLikeStatuses);
+
+			if (vehicleAlreadyInsured) {
+				throw new BusinessRuleException("This vehicle is already insured under an active or pending policy");
+			}
+
+		} else {
+
+			boolean hasDuplicate = !policyRepository
+					.findByCustomerIdAndPlanIdAndStatusIn(customer.getId(), plan.getId(), activeLikeStatuses).isEmpty();
+
+			if (hasDuplicate) {
+				throw new BusinessRuleException("You already have an active or pending policy for this plan");
+			}
+		}
+
+		int pendingCount = policyRepository.countByCustomerIdAndStatus(customer.getId(), PolicyStatus.PENDING_PAYMENT);
+		if (pendingCount >= 2) {
+			throw new BusinessRuleException(
+					"You already have " + pendingCount + " pending payments. Complete them before buying another plan");
+		}
+
+		int sameProductCount = policyRepository.countByCustomerIdAndPlanProductProductTypeAndStatusIn(customer.getId(),
+				plan.getProduct().getProductType(), activeLikeStatuses);
+		int limit = plan.getProduct().getProductType() == ProductType.LIFE ? 1
+				: plan.getProduct().getProductType() == ProductType.HEALTH ? 2 : Integer.MAX_VALUE;
+		if (sameProductCount >= limit) {
+			throw new BusinessRuleException("You've reached the maximum number of active "
+					+ plan.getProduct().getProductType() + " policies (" + limit + ") allowed for standard customers");
+		}
+
+		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency(),
+				req.getVehicleRegistrationNumber(), req.getVehicleMake(), req.getVehicleModel(),
+				req.getVehicleManufactureYear()));
+
 		log.info("Policy purchased: policyNumber={}, customer={}, planId={}, frequency={}", policy.getPolicyNumber(),
 				email, req.getPlanId(), policy.getPremiumFrequency());
 
@@ -98,8 +165,22 @@ public class PolicyService {
 			throw new BusinessRuleException("Cannot issue plan of an inactive product");
 		}
 
-		Policy policy = policyRepository
-				.save(buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency()));
+		List<PolicyStatus> activeLikeStatuses = List.of(PolicyStatus.PENDING_PAYMENT, PolicyStatus.ACTIVE,
+				PolicyStatus.LAPSED);
+
+		if (plan.getProduct().getProductType() == ProductType.MOTOR) {
+
+			String regNo = req.getVehicleRegistrationNumber().trim().toUpperCase().replaceAll("\\s+", "");
+
+			if (policyRepository.existsByVehicleRegistrationNumberAndStatusIn(regNo, activeLikeStatuses)) {
+
+				throw new BusinessRuleException("This vehicle is already insured under an active or pending policy");
+			}
+		}
+
+		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency(),
+				req.getVehicleRegistrationNumber(), req.getVehicleMake(), req.getVehicleModel(),
+				req.getVehicleManufactureYear()));
 
 		// SRS LOG-007: Policy issuance log
 		log.info("Policy issued: policyNumber={}, customerId={}, planId={}, frequency={}", policy.getPolicyNumber(),
@@ -158,6 +239,22 @@ public class PolicyService {
 		return mapToResponse(saved);
 	}
 
+	private void validateStartDate(PolicyPlan plan, LocalDate startDate) {
+		LocalDate today = LocalDate.now();
+
+		if (plan.getProduct().getProductType() == ProductType.TRAVEL) {
+			if (startDate.isAfter(today.plusDays(MAX_TRAVEL_ADVANCE_DAYS))) {
+				throw new BusinessRuleException(
+						"Trip start date cannot be more than " + MAX_TRAVEL_ADVANCE_DAYS + " days from today");
+			}
+		} else {
+			if (!startDate.isEqual(today)) {
+				throw new BusinessRuleException("This policy's coverage must start today (" + today
+						+ "). Only travel policies can have a future start date");
+			}
+		}
+	}
+
 	public PolicyResponse getPolicyById(Long policyId, String email) {
 		Policy policy = policyRepository.findById(policyId)
 				.orElseThrow(() -> new ResourceNotFoundException("Policy not found with id: " + policyId));
@@ -175,7 +272,6 @@ public class PolicyService {
 			}
 		}
 
-		// SRS FR-POL-010: Auto expire check
 		if (policy.getStatus() == PolicyStatus.ACTIVE && policy.getEndDate().isBefore(LocalDate.now())) {
 			policy.setStatus(PolicyStatus.EXPIRED);
 			policyRepository.save(policy);
@@ -195,15 +291,28 @@ public class PolicyService {
 	}
 
 	private Policy buildPolicy(Customer customer, PolicyPlan plan, LocalDate startDate,
-			PremiumFrequency requestedFrequency) {
+			PremiumFrequency requestedFrequency, String vehicleRegNo, String vehicleMake, String vehicleModel,
+			Integer vehicleYear) {
+
+		validateStartDate(plan, startDate);
+
+		String cleanRegNo = null;
+		BigDecimal idv = null;
+		Integer vehicleAge = null;
+		Integer depreciationPct = null;
+	
+		if (plan.getProduct().getProductType() == ProductType.MOTOR) {
+			cleanRegNo = validateVehicleDetails(vehicleRegNo, vehicleMake, vehicleModel, vehicleYear);
+			vehicleAge = Year.now().getValue() - vehicleYear;
+			idv = calculateIdv(plan.getCoverageAmount(), vehicleAge);
+			depreciationPct = getDepreciationPercent(vehicleAge).multiply(BigDecimal.valueOf(100)).intValue();
+		}
 
 		PremiumFrequency frequency = null;
 		BigDecimal installmentAmount;
 		Integer totalInstallmentsDue;
 
 		if (plan.getPremiumType() == PremiumType.ONE_TIME) {
-			// One-time premium: paid fully once, no EMI split (real life: e.g. a
-			// single-trip travel policy)
 			installmentAmount = plan.getPremiumAmount();
 			totalInstallmentsDue = 1;
 		} else {
@@ -219,13 +328,49 @@ public class PolicyService {
 		Policy.PolicyBuilder builder = Policy.builder().policyNumber(generatePolicyNumber()).customer(customer)
 				.plan(plan).startDate(startDate).endDate(startDate.plusYears(plan.getDurationYears()))
 				.status(PolicyStatus.PENDING_PAYMENT).premiumsPaid(0).premiumFrequency(frequency)
-				.installmentAmount(installmentAmount).totalInstallmentsDue(totalInstallmentsDue);
+				.installmentAmount(installmentAmount).totalInstallmentsDue(totalInstallmentsDue)
+				.vehicleRegistrationNumber(cleanRegNo).vehicleMake(vehicleMake != null ? vehicleMake.trim() : null)
+				.vehicleModel(vehicleModel != null ? vehicleModel.trim() : null)
+				.vehicleManufactureYear(plan.getProduct().getProductType() == ProductType.MOTOR ? vehicleYear : null)
+				.calculatedIdv(idv).vehicleAgeAtPurchase(vehicleAge).depreciationPercentApplied(depreciationPct);
 
 		if (plan.getPremiumType() == PremiumType.ANNUAL) {
 			builder.nextPremiumDueDate(startDate);
 		}
 
 		return builder.build();
+	}
+
+	private String validateVehicleDetails(String regNo, String make, String model, Integer year) {
+		if (regNo == null || regNo.isBlank()) {
+			throw new BusinessRuleException("Vehicle registration number is required for motor insurance");
+		}
+		if (make == null || make.isBlank()) {
+			throw new BusinessRuleException("Vehicle make is required for motor insurance");
+		}
+		if (model == null || model.isBlank()) {
+			throw new BusinessRuleException("Vehicle model is required for motor insurance");
+		}
+		if (year == null) {
+			throw new BusinessRuleException("Vehicle manufacture year is required for motor insurance");
+		}
+
+		String cleanRegNo = regNo.trim().toUpperCase().replaceAll("\\s+", "");
+		if (!VEHICLE_REG_PATTERN.matcher(cleanRegNo).matches()) {
+			throw new BusinessRuleException(
+					"Invalid vehicle registration number format. Expected format like DL01AB1234");
+		}
+
+		int currentYear = Year.now().getValue();
+		if (year > currentYear) {
+			throw new BusinessRuleException("Vehicle manufacture year cannot be in the future");
+		}
+		if (currentYear - year > MAX_VEHICLE_AGE_YEARS) {
+			throw new BusinessRuleException("This vehicle is " + (currentYear - year)
+					+ " years old. We only insure vehicles up to " + MAX_VEHICLE_AGE_YEARS + " years old");
+		}
+
+		return cleanRegNo;
 	}
 
 	// Core EMI formula: annual premium + frequency loading, split evenly across
@@ -245,6 +390,11 @@ public class PolicyService {
 				.totalInstallmentsDue(p.getTotalInstallmentsDue()).startDate(p.getStartDate()).endDate(p.getEndDate())
 				.status(p.getStatus()).totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
 				.nextPremiumDueDate(p.getNextPremiumDueDate()).durationYears(p.getPlan().getDurationYears())
-				.createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt()).build();
+				.createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt())
+				.vehicleRegistrationNumber(p.getVehicleRegistrationNumber()).vehicleMake(p.getVehicleMake())
+				.vehicleModel(p.getVehicleModel()).vehicleManufactureYear(p.getVehicleManufactureYear())
+				.calculatedIdv(p.getCalculatedIdv()).vehicleAgeAtPurchase(p.getVehicleAgeAtPurchase())
+				.depreciationPercentApplied(p.getDepreciationPercentApplied()).ncbPercentage(p.getNcbPercentage())
+				.build();
 	}
 }

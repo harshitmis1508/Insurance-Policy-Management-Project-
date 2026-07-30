@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 
 import com.harshit.monocept.entity.Policy;
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.ProductType;
 
 @Repository
 public interface PolicyRepository extends JpaRepository<Policy, Long> {
@@ -24,4 +25,13 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 	// Used by the daily lapse-check job — only ANNUAL (EMI) policies have a due
 	// date to check
 	List<Policy> findByStatusAndNextPremiumDueDateIsNotNull(PolicyStatus status);
+
+	List<Policy> findByCustomerIdAndPlanIdAndStatusIn(Long customerId, Long planId, List<PolicyStatus> statuses);
+
+	int countByCustomerIdAndStatus(Long customerId, PolicyStatus status);
+
+	int countByCustomerIdAndPlanProductProductTypeAndStatusIn(Long customerId, ProductType productType,
+			List<PolicyStatus> statuses);
+
+	boolean existsByVehicleRegistrationNumberAndStatusIn(String vehicleRegistrationNumber, List<PolicyStatus> statuses);
 }

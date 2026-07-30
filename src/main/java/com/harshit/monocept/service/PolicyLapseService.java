@@ -22,11 +22,6 @@ public class PolicyLapseService {
 
 	private final PolicyRepository policyRepository;
 
-	/**
-	 * Real-world grace period logic: if premium isn't paid within the grace window
-	 * after the due date, coverage stops (policy becomes LAPSED) but the policy
-	 * itself isn't deleted — customer can still revive it by paying.
-	 */
 	@Transactional
 	public int processLapses() {
 		LocalDate today = LocalDate.now();
