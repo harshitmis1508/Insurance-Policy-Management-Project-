@@ -136,8 +136,6 @@ public class PolicyService {
 					+ plan.getProduct().getProductType() + " policies (" + limit + ") allowed for standard customers");
 		}
 
-		// Travel-specific validations (end date and travellers) without DB schema
-		// change
 		if (plan.getProduct().getProductType() == ProductType.TRAVEL) {
 			LocalDate start = req.getStartDate();
 			LocalDate tripEnd = req.getTripEndDate();
@@ -163,15 +161,12 @@ public class PolicyService {
 			if (adults + children < 1) {
 				throw new BusinessRuleException("At least one traveller is required");
 			}
-		}
-		// Health specific validations (per-member ages, no schema change)
-		else if (plan.getProduct().getProductType() == ProductType.HEALTH) {
+		} else if (plan.getProduct().getProductType() == ProductType.HEALTH) {
 			String coverType = req.getHealthCoverType();
 			if (coverType == null || !(coverType.equals("INDIVIDUAL") || coverType.equals("FLOATER"))) {
 				throw new BusinessRuleException("Cover type is required for health policies (Individual or Floater)");
 			}
-			// Validate pre-existing selections (optional but must be consistent when
-			// provided)
+
 			List<String> conds = req.getHealthPreExistingConditions();
 			List<Integer> years = req.getHealthPreExistingSinceYears();
 			if (conds != null) {
@@ -248,14 +243,10 @@ public class PolicyService {
 			}
 		}
 
-		// Pre-compute HEALTH adjusted annual premium (server-side rating) so billing
-		// matches UI
 		BigDecimal healthLoadedAnnual = null;
 		if (plan.getProduct().getProductType() == ProductType.HEALTH) {
 			healthLoadedAnnual = computeHealthLoadedAnnual(plan, req);
-		}
-		// Life specific validations (minimum capture at purchase)
-		else if (plan.getProduct().getProductType() == ProductType.LIFE) {
+		} else if (plan.getProduct().getProductType() == ProductType.LIFE) {
 			LocalDate dob = req.getLifeDob();
 			if (dob == null) {
 				throw new BusinessRuleException("Date of birth is required for life policies");
@@ -296,12 +287,10 @@ public class PolicyService {
 				req.getVehicleRegistrationNumber(), req.getVehicleMake(), req.getVehicleModel(),
 				req.getVehicleManufactureYear());
 
-		// For TRAVEL, override end date using tripEndDate provided in request
 		if (plan.getProduct().getProductType() == ProductType.TRAVEL && req.getTripEndDate() != null) {
 			policy.setEndDate(req.getTripEndDate());
 		}
 
-		// If HEALTH, override installment amount using adjusted annual
 		if (plan.getProduct().getProductType() == ProductType.HEALTH && healthLoadedAnnual != null) {
 			if (plan.getPremiumType() == PremiumType.ONE_TIME) {
 				policy.setInstallmentAmount(healthLoadedAnnual.setScale(2, RoundingMode.HALF_UP));
@@ -320,8 +309,6 @@ public class PolicyService {
 		return mapToResponse(policy);
 	}
 
-	// Compute loaded annual premium for HEALTH based on disclosed details (mirrors
-	// FE demo logic)
 	private BigDecimal computeHealthLoadedAnnual(PolicyPlan plan, PolicyPurchaseRequest req) {
 		BigDecimal base = plan.getPremiumAmount();
 		if (base == null)
@@ -631,7 +618,7 @@ public class PolicyService {
 			throw new BusinessRuleException("Vehicle manufacture year is required for motor insurance");
 		}
 
-		String cleanRegNo = regNo.trim().toUpperCase().replaceAll("\\s+", " ");
+		String cleanRegNo = regNo.trim().toUpperCase().replaceAll("\\s+", "");
 		if (!VEHICLE_REG_PATTERN.matcher(cleanRegNo).matches()) {
 			throw new BusinessRuleException(
 					"Invalid vehicle registration number format. Expected format like DL01AB1234");
