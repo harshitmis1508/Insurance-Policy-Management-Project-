@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.harshit.monocept.enums.PolicyStatus;
 import com.harshit.monocept.enums.PremiumFrequency;
 import com.harshit.monocept.enums.PremiumType;
@@ -20,6 +21,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class PolicyResponse {
 	private Long policyId;
 	private String policyNumber;
@@ -38,8 +40,10 @@ public class PolicyResponse {
 	private Integer premiumsPaid;
 	private LocalDate nextPremiumDueDate;
 	private PremiumFrequency premiumFrequency;
-	private BigDecimal installmentAmount;
-	private Integer totalInstallmentsDue;
+    private BigDecimal installmentAmount;
+    private Integer totalInstallments; // renamed from totalInstallmentsDue
+    // Convenience field to indicate how many installments are still pending
+    private Integer remainingInstallments;
 	private Integer durationYears;
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;

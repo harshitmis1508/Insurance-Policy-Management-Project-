@@ -22,8 +22,7 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
 	Page<Policy> findByStatus(PolicyStatus status, Pageable pageable);
 
-	// Used by the daily lapse-check job — only ANNUAL (EMI) policies have a due
-	// date to check
+
 	List<Policy> findByStatusAndNextPremiumDueDateIsNotNull(PolicyStatus status);
 
 	List<Policy> findByCustomerIdAndPlanIdAndStatusIn(Long customerId, Long planId, List<PolicyStatus> statuses);

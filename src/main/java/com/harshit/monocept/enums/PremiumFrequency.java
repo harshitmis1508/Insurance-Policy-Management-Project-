@@ -4,10 +4,7 @@ import java.math.BigDecimal;
 
 public enum PremiumFrequency {
 
-	// Negative factor = discount/rebate, positive factor = loading (extra charge)
-	// gracePeriodDays: real-world standard — monthly gets a shorter grace window,
-	// everything else gets the standard 30-day grace window (matches LIC's
-	// convention)
+
 	ANNUAL(1, new BigDecimal("-0.02"), 30), HALF_YEARLY(2, new BigDecimal("-0.01"), 30),
 	QUARTERLY(4, BigDecimal.ZERO, 30), MONTHLY(12, new BigDecimal("0.03"), 15);
 

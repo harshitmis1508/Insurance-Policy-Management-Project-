@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.Year;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -135,14 +136,289 @@ public class PolicyService {
 					+ plan.getProduct().getProductType() + " policies (" + limit + ") allowed for standard customers");
 		}
 
-		Policy policy = policyRepository.save(buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency(),
+		// Travel-specific validations (end date and travellers) without DB schema
+		// change
+		if (plan.getProduct().getProductType() == ProductType.TRAVEL) {
+			LocalDate start = req.getStartDate();
+			LocalDate tripEnd = req.getTripEndDate();
+			if (tripEnd == null) {
+				throw new BusinessRuleException("Trip end date is required for travel policies");
+			}
+			if (tripEnd.isBefore(start)) {
+				throw new BusinessRuleException("Trip end date cannot be before the start date");
+			}
+			long durationDays = ChronoUnit.DAYS.between(start, tripEnd) + 1;
+			if (durationDays < 1 || durationDays > 180) {
+				throw new BusinessRuleException("Travel duration must be between 1 and 180 days");
+			}
+
+			Integer adults = req.getTravellersAdultCount();
+			Integer children = req.getTravellersChildCount() == null ? 0 : req.getTravellersChildCount();
+			if (adults == null || adults < 1 || adults > 9) {
+				throw new BusinessRuleException("Adults count must be between 1 and 9 for travel policies");
+			}
+			if (children < 0 || children > 9) {
+				throw new BusinessRuleException("Children count must be between 0 and 9 for travel policies");
+			}
+			if (adults + children < 1) {
+				throw new BusinessRuleException("At least one traveller is required");
+			}
+		}
+		// Health specific validations (per-member ages, no schema change)
+		else if (plan.getProduct().getProductType() == ProductType.HEALTH) {
+			String coverType = req.getHealthCoverType();
+			if (coverType == null || !(coverType.equals("INDIVIDUAL") || coverType.equals("FLOATER"))) {
+				throw new BusinessRuleException("Cover type is required for health policies (Individual or Floater)");
+			}
+			// Validate pre-existing selections (optional but must be consistent when
+			// provided)
+			List<String> conds = req.getHealthPreExistingConditions();
+			List<Integer> years = req.getHealthPreExistingSinceYears();
+			if (conds != null) {
+				if (years != null && years.size() != conds.size()) {
+					throw new BusinessRuleException("Pre-existing conditions and years size mismatch");
+				}
+				for (int i = 0; i < conds.size(); i++) {
+					String code = conds.get(i);
+					if (code == null) {
+						throw new BusinessRuleException("Invalid pre-existing condition");
+					}
+					switch (code) {
+					case "DIABETES":
+					case "HYPERTENSION":
+					case "ASTHMA_COPD":
+					case "THYROID":
+					case "HEART_DISEASE":
+					case "KIDNEY_LIVER":
+					case "OTHER":
+						break;
+					default:
+						throw new BusinessRuleException("Invalid pre-existing condition: " + code);
+					}
+					if (years != null) {
+						Integer yr = years.get(i);
+						if (yr != null) {
+							int y = yr;
+							int min = Year.now().getValue() - 80;
+							int max = Year.now().getValue();
+							if (y < min || y > max) {
+								throw new BusinessRuleException("Since year must be within last 80 years");
+							}
+						}
+					}
+				}
+			}
+			if (coverType.equals("INDIVIDUAL")) {
+				Integer age = req.getHealthInsuredAge();
+				if (age == null) {
+					throw new BusinessRuleException("Age is required for Individual health cover");
+				}
+				if (age < 18 || age > 65) {
+					throw new BusinessRuleException("Insured age must be between 18 and 65 years for health");
+				}
+			} else { // FLOATER
+				Integer adultCount = req.getHealthAdultCount();
+				Integer childCount = req.getHealthChildCount() == null ? 0 : req.getHealthChildCount();
+				if (adultCount == null || adultCount < 1 || adultCount > 2) {
+					throw new BusinessRuleException("For floater, adults must be 1 or 2");
+				}
+				if (childCount < 0 || childCount > 4) {
+					throw new BusinessRuleException("For floater, children must be between 0 and 4");
+				}
+				List<Integer> adultAges = req.getHealthAdultAges();
+				if (adultAges == null || adultAges.size() != adultCount) {
+					throw new BusinessRuleException("Provide exactly " + adultCount + " adult ages");
+				}
+				for (Integer a : adultAges) {
+					if (a == null || a < 18 || a > 65) {
+						throw new BusinessRuleException("Each adult age must be between 18 and 65");
+					}
+				}
+				if (childCount > 0) {
+					List<Integer> childAges = req.getHealthChildAges();
+					if (childAges == null || childAges.size() != childCount) {
+						throw new BusinessRuleException("Provide exactly " + childCount + " child ages");
+					}
+					for (Integer c : childAges) {
+						if (c == null || c < 0 || c > 25) {
+							throw new BusinessRuleException("Each child age must be between 0 and 25");
+						}
+					}
+				}
+			}
+		}
+
+		// Pre-compute HEALTH adjusted annual premium (server-side rating) so billing
+		// matches UI
+		BigDecimal healthLoadedAnnual = null;
+		if (plan.getProduct().getProductType() == ProductType.HEALTH) {
+			healthLoadedAnnual = computeHealthLoadedAnnual(plan, req);
+		}
+		// Life specific validations (minimum capture at purchase)
+		else if (plan.getProduct().getProductType() == ProductType.LIFE) {
+			LocalDate dob = req.getLifeDob();
+			if (dob == null) {
+				throw new BusinessRuleException("Date of birth is required for life policies");
+			}
+			int age = (int) ChronoUnit.YEARS.between(dob, LocalDate.now());
+			if (age < 18 || age > 65) {
+				throw new BusinessRuleException("Age must be between 18 and 65 years for life insurance");
+			}
+			if (req.getLifeSmoker() == null) {
+				throw new BusinessRuleException("Please select smoker status for life policies");
+			}
+			String occ = req.getLifeOccupationRisk();
+			if (occ == null || !(occ.equals("LOW") || occ.equals("MEDIUM") || occ.equals("HIGH"))) {
+				throw new BusinessRuleException("Choose a valid occupation risk: LOW, MEDIUM or HIGH");
+			}
+			List<com.harshit.monocept.dto.request.PolicyPurchaseRequestNominee> nominees = req.getLifeNominees();
+			if (nominees == null || nominees.isEmpty()) {
+				throw new BusinessRuleException("At least one nominee is required for life policies");
+			}
+			int totalShare = 0;
+			for (var n : nominees) {
+				if (n.getName() == null || n.getName().isBlank() || n.getRelationship() == null
+						|| n.getRelationship().isBlank()) {
+					throw new BusinessRuleException("Nominee name and relationship are required");
+				}
+				Integer sp = n.getSharePct();
+				if (sp == null || sp < 1 || sp > 100) {
+					throw new BusinessRuleException("Nominee share must be between 1 and 100");
+				}
+				totalShare += sp;
+			}
+			if (totalShare != 100) {
+				throw new BusinessRuleException("Total nominee share must be exactly 100%");
+			}
+		}
+
+		Policy policy = buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency(),
 				req.getVehicleRegistrationNumber(), req.getVehicleMake(), req.getVehicleModel(),
-				req.getVehicleManufactureYear()));
+				req.getVehicleManufactureYear());
+
+		// For TRAVEL, override end date using tripEndDate provided in request
+		if (plan.getProduct().getProductType() == ProductType.TRAVEL && req.getTripEndDate() != null) {
+			policy.setEndDate(req.getTripEndDate());
+		}
+
+		// If HEALTH, override installment amount using adjusted annual
+		if (plan.getProduct().getProductType() == ProductType.HEALTH && healthLoadedAnnual != null) {
+			if (plan.getPremiumType() == PremiumType.ONE_TIME) {
+				policy.setInstallmentAmount(healthLoadedAnnual.setScale(2, RoundingMode.HALF_UP));
+			} else {
+				PremiumFrequency freq = policy.getPremiumFrequency();
+				BigDecimal inst = calculateInstallmentAmount(healthLoadedAnnual, freq);
+				policy.setInstallmentAmount(inst);
+			}
+		}
+
+		policy = policyRepository.save(policy);
 
 		log.info("Policy purchased: policyNumber={}, customer={}, planId={}, frequency={}", policy.getPolicyNumber(),
 				email, req.getPlanId(), policy.getPremiumFrequency());
 
 		return mapToResponse(policy);
+	}
+
+	// Compute loaded annual premium for HEALTH based on disclosed details (mirrors
+	// FE demo logic)
+	private BigDecimal computeHealthLoadedAnnual(PolicyPlan plan, PolicyPurchaseRequest req) {
+		BigDecimal base = plan.getPremiumAmount();
+		if (base == null)
+			base = BigDecimal.ZERO;
+
+		// Derive age: INDIVIDUAL uses insured age; FLOATER uses max adult age
+		int age = 30;
+		String coverType = req.getHealthCoverType() != null ? req.getHealthCoverType() : "INDIVIDUAL";
+		if ("INDIVIDUAL".equals(coverType)) {
+			Integer a = req.getHealthInsuredAge();
+			if (a != null && a > 0)
+				age = a;
+		} else {
+			List<Integer> adultAges = req.getHealthAdultAges();
+			if (adultAges != null && !adultAges.isEmpty()) {
+				int max = 0;
+				for (Integer v : adultAges) {
+					if (v != null && v > max)
+						max = v;
+				}
+				if (max > 0)
+					age = max;
+			}
+		}
+
+		// Age factor
+		BigDecimal ageFactor = BigDecimal.ZERO; // fraction e.g., 0.07
+		if (age >= 56)
+			ageFactor = new BigDecimal("0.30");
+		else if (age >= 46)
+			ageFactor = new BigDecimal("0.15");
+		else if (age >= 36)
+			ageFactor = new BigDecimal("0.07");
+
+		// Condition loadings
+		java.util.Map<String, BigDecimal> LOAD = new java.util.HashMap<>();
+		LOAD.put("DIABETES", new BigDecimal("0.12"));
+		LOAD.put("HYPERTENSION", new BigDecimal("0.08"));
+		LOAD.put("ASTHMA_COPD", new BigDecimal("0.10"));
+		LOAD.put("THYROID", new BigDecimal("0.04"));
+		LOAD.put("HEART_DISEASE", new BigDecimal("0.25"));
+		LOAD.put("KIDNEY_LIVER", new BigDecimal("0.20"));
+		LOAD.put("OTHER", new BigDecimal("0.05"));
+
+		BigDecimal condSum = BigDecimal.ZERO;
+		List<String> conds = req.getHealthPreExistingConditions();
+		List<Integer> years = req.getHealthPreExistingSinceYears();
+		for (int i = 0; conds != null && i < conds.size(); i++) {
+			String code = conds.get(i);
+			BigDecimal l = LOAD.getOrDefault(code, BigDecimal.ZERO);
+			Integer since = (years != null && years.size() > i) ? years.get(i) : null;
+			if (since != null) {
+				int current = Year.now().getValue();
+				int yrs = current - since;
+				if (yrs <= 3) {
+					// +50% of that condition's loading
+					l = l.add(LOAD.getOrDefault(code, BigDecimal.ZERO).multiply(new BigDecimal("0.50")));
+				} else if (yrs >= 10) {
+					// -25% but not below 0
+					BigDecimal dec = LOAD.getOrDefault(code, BigDecimal.ZERO).multiply(new BigDecimal("0.25"));
+					l = l.subtract(dec);
+					if (l.compareTo(BigDecimal.ZERO) < 0)
+						l = BigDecimal.ZERO;
+				}
+			}
+			condSum = condSum.add(l);
+		}
+		// Cap condition loadings at +60%
+		if (condSum.compareTo(new BigDecimal("0.60")) > 0)
+			condSum = new BigDecimal("0.60");
+
+		// Children adjustment for floater: +2% per child capped at +8%
+		BigDecimal childAdj = BigDecimal.ZERO;
+		if ("FLOATER".equals(coverType)) {
+			int childCount = req.getHealthChildCount() == null ? 0 : req.getHealthChildCount();
+			BigDecimal add = new BigDecimal("0.02").multiply(new BigDecimal(childCount));
+			if (add.compareTo(new BigDecimal("0.08")) > 0)
+				add = new BigDecimal("0.08");
+			if (add.compareTo(BigDecimal.ZERO) > 0)
+				childAdj = add;
+		}
+
+		// Overall cap at +80%
+		BigDecimal totalLoad = ageFactor.add(condSum).add(childAdj);
+		if (totalLoad.compareTo(new BigDecimal("0.80")) > 0)
+			totalLoad = new BigDecimal("0.80");
+		if (totalLoad.compareTo(BigDecimal.ZERO) < 0)
+			totalLoad = BigDecimal.ZERO;
+
+		BigDecimal onePlus = BigDecimal.ONE.add(totalLoad);
+		BigDecimal adjusted = base.multiply(onePlus);
+
+		// Round to nearest 10
+		BigDecimal ten = new BigDecimal("10");
+		BigDecimal divided = adjusted.divide(ten, 0, RoundingMode.HALF_UP);
+		BigDecimal rounded = divided.multiply(ten);
+		return rounded.setScale(2, RoundingMode.HALF_UP);
 	}
 
 	@Transactional
@@ -300,7 +576,7 @@ public class PolicyService {
 		BigDecimal idv = null;
 		Integer vehicleAge = null;
 		Integer depreciationPct = null;
-	
+
 		if (plan.getProduct().getProductType() == ProductType.MOTOR) {
 			cleanRegNo = validateVehicleDetails(vehicleRegNo, vehicleMake, vehicleModel, vehicleYear);
 			vehicleAge = Year.now().getValue() - vehicleYear;
@@ -355,7 +631,7 @@ public class PolicyService {
 			throw new BusinessRuleException("Vehicle manufacture year is required for motor insurance");
 		}
 
-		String cleanRegNo = regNo.trim().toUpperCase().replaceAll("\\s+", "");
+		String cleanRegNo = regNo.trim().toUpperCase().replaceAll("\\s+", " ");
 		if (!VEHICLE_REG_PATTERN.matcher(cleanRegNo).matches()) {
 			throw new BusinessRuleException(
 					"Invalid vehicle registration number format. Expected format like DL01AB1234");
@@ -373,22 +649,28 @@ public class PolicyService {
 		return cleanRegNo;
 	}
 
-	// Core EMI formula: annual premium + frequency loading, split evenly across
-	// installments
 	private BigDecimal calculateInstallmentAmount(BigDecimal annualPremium, PremiumFrequency frequency) {
 		BigDecimal loadedAnnual = annualPremium.multiply(BigDecimal.ONE.add(frequency.getLoadingFactor()));
 		return loadedAnnual.divide(BigDecimal.valueOf(frequency.getInstallmentsPerYear()), 2, RoundingMode.HALF_UP);
 	}
 
 	public PolicyResponse mapToResponse(Policy p) {
+		Integer remainingInstallments = null;
+		if (p.getPlan().getPremiumType() == PremiumType.ANNUAL) {
+			int total = p.getTotalInstallmentsDue() != null ? p.getTotalInstallmentsDue() : 0;
+			int paid = p.getPremiumsPaid() != null ? p.getPremiumsPaid() : 0;
+			remainingInstallments = Math.max(0, total - paid);
+		}
+
 		return PolicyResponse.builder().policyId(p.getId()).policyNumber(p.getPolicyNumber())
 				.customerId(p.getCustomer().getId()).customerName(p.getCustomer().getUser().getFullName())
 				.planId(p.getPlan().getId()).planName(p.getPlan().getPlanName())
 				.productType(p.getPlan().getProduct().getProductType()).coverageAmount(p.getPlan().getCoverageAmount())
 				.premiumAmount(p.getPlan().getPremiumAmount()).premiumType(p.getPlan().getPremiumType())
 				.premiumFrequency(p.getPremiumFrequency()).installmentAmount(p.getInstallmentAmount())
-				.totalInstallmentsDue(p.getTotalInstallmentsDue()).startDate(p.getStartDate()).endDate(p.getEndDate())
-				.status(p.getStatus()).totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
+				.totalInstallments(p.getTotalInstallmentsDue()).remainingInstallments(remainingInstallments)
+				.startDate(p.getStartDate()).endDate(p.getEndDate()).status(p.getStatus())
+				.totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
 				.nextPremiumDueDate(p.getNextPremiumDueDate()).durationYears(p.getPlan().getDurationYears())
 				.createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt())
 				.vehicleRegistrationNumber(p.getVehicleRegistrationNumber()).vehicleMake(p.getVehicleMake())
