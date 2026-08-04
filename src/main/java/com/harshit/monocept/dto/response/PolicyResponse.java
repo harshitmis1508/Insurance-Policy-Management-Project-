@@ -56,4 +56,19 @@ public class PolicyResponse {
 	private Integer ncbPercentage;
 	private Integer vehicleAgeAtPurchase;
 	private Integer depreciationPercentApplied;
+
+    // ================= HEALTH DISCLOSURES (optional, HEALTH product only) =================
+    private String healthCoverType;
+    private Integer healthInsuredAge;
+    private Integer healthAdultCount;
+    private Integer healthChildCount;
+    private Boolean healthHasPreExisting;
+    private java.util.List<Integer> healthAdultAges;
+    private java.util.List<Integer> healthChildAges;
+    private java.util.List<HealthPreExistingDto> healthPreExisting;
+
+    // ================= LIFE DISCLOSURES (optional, LIFE product only) =================
+    private java.time.LocalDate lifeDob;
+    private Boolean lifeSmoker;
+    private java.util.List<LifeNomineeDto> lifeNominees;
 }

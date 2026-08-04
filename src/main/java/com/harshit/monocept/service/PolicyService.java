@@ -19,9 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.harshit.monocept.dto.request.PolicyIssueRequest;
 import com.harshit.monocept.dto.request.PolicyPurchaseRequest;
 import com.harshit.monocept.dto.response.PolicyResponse;
+import com.harshit.monocept.dto.response.HealthPreExistingDto;
 import com.harshit.monocept.entity.Customer;
 import com.harshit.monocept.entity.Policy;
 import com.harshit.monocept.entity.PolicyPlan;
+import com.harshit.monocept.entity.HealthPreExistingEntry;
 import com.harshit.monocept.entity.User;
 import com.harshit.monocept.enums.PolicyStatus;
 import com.harshit.monocept.enums.PremiumFrequency;
@@ -246,7 +248,7 @@ public class PolicyService {
 		BigDecimal healthLoadedAnnual = null;
 		if (plan.getProduct().getProductType() == ProductType.HEALTH) {
 			healthLoadedAnnual = computeHealthLoadedAnnual(plan, req);
-		} else if (plan.getProduct().getProductType() == ProductType.LIFE) {
+        } else if (plan.getProduct().getProductType() == ProductType.LIFE) {
 			LocalDate dob = req.getLifeDob();
 			if (dob == null) {
 				throw new BusinessRuleException("Date of birth is required for life policies");
@@ -255,13 +257,10 @@ public class PolicyService {
 			if (age < 18 || age > 65) {
 				throw new BusinessRuleException("Age must be between 18 and 65 years for life insurance");
 			}
-			if (req.getLifeSmoker() == null) {
+            if (req.getLifeSmoker() == null) {
 				throw new BusinessRuleException("Please select smoker status for life policies");
 			}
-			String occ = req.getLifeOccupationRisk();
-			if (occ == null || !(occ.equals("LOW") || occ.equals("MEDIUM") || occ.equals("HIGH"))) {
-				throw new BusinessRuleException("Choose a valid occupation risk: LOW, MEDIUM or HIGH");
-			}
+            // Occupation risk no longer required/used
 			List<com.harshit.monocept.dto.request.PolicyPurchaseRequestNominee> nominees = req.getLifeNominees();
 			if (nominees == null || nominees.isEmpty()) {
 				throw new BusinessRuleException("At least one nominee is required for life policies");
@@ -278,18 +277,60 @@ public class PolicyService {
 				}
 				totalShare += sp;
 			}
-			if (totalShare != 100) {
-				throw new BusinessRuleException("Total nominee share must be exactly 100%");
-			}
-		}
+            if (totalShare != 100) {
+                throw new BusinessRuleException("Total nominee share must be exactly 100%");
+            }
+        }
 
-		Policy policy = buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency(),
+        Policy policy = buildPolicy(customer, plan, req.getStartDate(), req.getPremiumFrequency(),
 				req.getVehicleRegistrationNumber(), req.getVehicleMake(), req.getVehicleModel(),
 				req.getVehicleManufactureYear());
 
-		if (plan.getProduct().getProductType() == ProductType.TRAVEL && req.getTripEndDate() != null) {
-			policy.setEndDate(req.getTripEndDate());
-		}
+        if (plan.getProduct().getProductType() == ProductType.TRAVEL && req.getTripEndDate() != null) {
+            policy.setEndDate(req.getTripEndDate());
+        }
+        // HEALTH: persist disclosures (cover type, ages, pre-existing list)
+        if (plan.getProduct().getProductType() == ProductType.HEALTH) {
+            policy.setHealthCoverType(req.getHealthCoverType());
+            policy.setHealthInsuredAge(req.getHealthInsuredAge());
+            policy.setHealthAdultCount(req.getHealthAdultCount());
+            policy.setHealthChildCount(req.getHealthChildCount());
+            policy.setHealthHasPreExisting(Boolean.TRUE.equals(req.getHealthHasPreExisting()));
+            policy.setHealthAdultAges(req.getHealthAdultAges());
+            policy.setHealthChildAges(req.getHealthChildAges());
+
+            java.util.List<String> codes = req.getHealthPreExistingConditions();
+            java.util.List<Integer> years = req.getHealthPreExistingSinceYears();
+            if (codes != null && !codes.isEmpty()) {
+                java.util.List<HealthPreExistingEntry> entries = new java.util.ArrayList<>();
+                for (int i = 0; i < codes.size(); i++) {
+                    String code = codes.get(i);
+                    Integer since = (years != null && years.size() > i) ? years.get(i) : null;
+                    if (code != null) {
+                        entries.add(new HealthPreExistingEntry(code, since));
+                    }
+                }
+                if (!entries.isEmpty()) {
+                    policy.setHealthPreExisting(entries);
+                }
+            }
+        }
+
+        // LIFE: persist smoker/dob/nominees on policy
+        if (plan.getProduct().getProductType() == ProductType.LIFE) {
+            policy.setLifeDob(req.getLifeDob());
+            policy.setLifeSmoker(Boolean.TRUE.equals(req.getLifeSmoker()));
+            java.util.List<com.harshit.monocept.dto.request.PolicyPurchaseRequestNominee> nlist = req.getLifeNominees();
+            if (nlist != null && !nlist.isEmpty()) {
+                java.util.List<com.harshit.monocept.entity.LifeNomineeEntry> entries = new java.util.ArrayList<>();
+                for (var n : nlist) {
+                    entries.add(new com.harshit.monocept.entity.LifeNomineeEntry(
+                        n.getName(), n.getRelationship(), n.getSharePct(), n.getDob()
+                    ));
+                }
+                policy.setLifeNominees(entries);
+            }
+        }
 
 		if (plan.getProduct().getProductType() == ProductType.HEALTH && healthLoadedAnnual != null) {
 			if (plan.getPremiumType() == PremiumType.ONE_TIME) {
@@ -642,28 +683,61 @@ public class PolicyService {
 	}
 
 	public PolicyResponse mapToResponse(Policy p) {
-		Integer remainingInstallments = null;
-		if (p.getPlan().getPremiumType() == PremiumType.ANNUAL) {
-			int total = p.getTotalInstallmentsDue() != null ? p.getTotalInstallmentsDue() : 0;
-			int paid = p.getPremiumsPaid() != null ? p.getPremiumsPaid() : 0;
-			remainingInstallments = Math.max(0, total - paid);
-		}
+        Integer remainingInstallments = null;
+        if (p.getPlan().getPremiumType() == PremiumType.ANNUAL) {
+            int total = p.getTotalInstallmentsDue() != null ? p.getTotalInstallmentsDue() : 0;
+            int paid = p.getPremiumsPaid() != null ? p.getPremiumsPaid() : 0;
+            remainingInstallments = Math.max(0, total - paid);
+        }
 
-		return PolicyResponse.builder().policyId(p.getId()).policyNumber(p.getPolicyNumber())
-				.customerId(p.getCustomer().getId()).customerName(p.getCustomer().getUser().getFullName())
-				.planId(p.getPlan().getId()).planName(p.getPlan().getPlanName())
-				.productType(p.getPlan().getProduct().getProductType()).coverageAmount(p.getPlan().getCoverageAmount())
-				.premiumAmount(p.getPlan().getPremiumAmount()).premiumType(p.getPlan().getPremiumType())
-				.premiumFrequency(p.getPremiumFrequency()).installmentAmount(p.getInstallmentAmount())
-				.totalInstallments(p.getTotalInstallmentsDue()).remainingInstallments(remainingInstallments)
-				.startDate(p.getStartDate()).endDate(p.getEndDate()).status(p.getStatus())
-				.totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
-				.nextPremiumDueDate(p.getNextPremiumDueDate()).durationYears(p.getPlan().getDurationYears())
-				.createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt())
-				.vehicleRegistrationNumber(p.getVehicleRegistrationNumber()).vehicleMake(p.getVehicleMake())
-				.vehicleModel(p.getVehicleModel()).vehicleManufactureYear(p.getVehicleManufactureYear())
-				.calculatedIdv(p.getCalculatedIdv()).vehicleAgeAtPurchase(p.getVehicleAgeAtPurchase())
-				.depreciationPercentApplied(p.getDepreciationPercentApplied()).ncbPercentage(p.getNcbPercentage())
-				.build();
+        PolicyResponse.PolicyResponseBuilder builder = PolicyResponse.builder().policyId(p.getId()).policyNumber(p.getPolicyNumber())
+                .customerId(p.getCustomer().getId()).customerName(p.getCustomer().getUser().getFullName())
+                .planId(p.getPlan().getId()).planName(p.getPlan().getPlanName())
+                .productType(p.getPlan().getProduct().getProductType()).coverageAmount(p.getPlan().getCoverageAmount())
+                .premiumAmount(p.getPlan().getPremiumAmount()).premiumType(p.getPlan().getPremiumType())
+                .premiumFrequency(p.getPremiumFrequency()).installmentAmount(p.getInstallmentAmount())
+                .totalInstallments(p.getTotalInstallmentsDue()).remainingInstallments(remainingInstallments)
+                .startDate(p.getStartDate()).endDate(p.getEndDate())
+                .status(p.getStatus()).totalPremiumPaid(p.getTotalPremiumPaid()).premiumsPaid(p.getPremiumsPaid())
+                .nextPremiumDueDate(p.getNextPremiumDueDate()).durationYears(p.getPlan().getDurationYears())
+                .createdAt(p.getCreatedAt()).updatedAt(p.getUpdatedAt())
+                .vehicleRegistrationNumber(p.getVehicleRegistrationNumber()).vehicleMake(p.getVehicleMake())
+                .vehicleModel(p.getVehicleModel()).vehicleManufactureYear(p.getVehicleManufactureYear())
+                .calculatedIdv(p.getCalculatedIdv()).vehicleAgeAtPurchase(p.getVehicleAgeAtPurchase())
+                .depreciationPercentApplied(p.getDepreciationPercentApplied()).ncbPercentage(p.getNcbPercentage());
+
+        // Map HEALTH disclosures if present
+        if (p.getPlan().getProduct().getProductType() == ProductType.HEALTH) {
+            builder
+                .healthCoverType(p.getHealthCoverType())
+                .healthInsuredAge(p.getHealthInsuredAge())
+                .healthAdultCount(p.getHealthAdultCount())
+                .healthChildCount(p.getHealthChildCount())
+                .healthHasPreExisting(p.getHealthHasPreExisting())
+                .healthAdultAges(p.getHealthAdultAges())
+                .healthChildAges(p.getHealthChildAges());
+
+            if (p.getHealthPreExisting() != null && !p.getHealthPreExisting().isEmpty()) {
+                java.util.List<HealthPreExistingDto> list = new java.util.ArrayList<>();
+                for (HealthPreExistingEntry e : p.getHealthPreExisting()) {
+                    list.add(new HealthPreExistingDto(e.getCode(), e.getSinceYear()));
+                }
+                builder.healthPreExisting(list);
+            }
+        }
+
+        // Map LIFE disclosures if present
+        if (p.getPlan().getProduct().getProductType() == ProductType.LIFE) {
+            builder.lifeDob(p.getLifeDob()).lifeSmoker(p.getLifeSmoker());
+            if (p.getLifeNominees() != null && !p.getLifeNominees().isEmpty()) {
+                java.util.List<com.harshit.monocept.dto.response.LifeNomineeDto> out = new java.util.ArrayList<>();
+                for (com.harshit.monocept.entity.LifeNomineeEntry e : p.getLifeNominees()) {
+                    out.add(new com.harshit.monocept.dto.response.LifeNomineeDto(e.getName(), e.getRelationship(), e.getSharePct(), e.getDob()));
+                }
+                builder.lifeNominees(out);
+            }
+        }
+
+        return builder.build();
 	}
 }

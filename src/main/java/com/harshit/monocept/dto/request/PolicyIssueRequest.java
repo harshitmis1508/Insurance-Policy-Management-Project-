@@ -27,10 +27,8 @@ public class PolicyIssueRequest {
 	@FutureOrPresent(message = "Start date cannot be in the past")
 	private LocalDate startDate;
 
-	// Required only when the chosen plan's premiumType is ANNUAL
 	private PremiumFrequency premiumFrequency;
 
-	// Required only when the chosen plan's product type is MOTOR
 	private String vehicleRegistrationNumber;
 	private String vehicleMake;
 	private String vehicleModel;

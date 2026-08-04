@@ -17,11 +17,10 @@ public class PolicyPurchaseRequestNominee {
     private String name;
 
     @NotBlank
-    private String relationship; // SPOUSE | PARENT | CHILD | OTHER
-
+    private String relationship;
     @Min(1)
     @Max(100)
-    private Integer sharePct; // total across nominees should be 100 (validated in service)
+    private Integer sharePct;
 
-    private LocalDate dob; // optional
+    private LocalDate dob; 
 }
