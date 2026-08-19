@@ -12,6 +12,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.harshit.monocept.dto.request.ClaimDecisionRequest;
 import com.harshit.monocept.dto.request.ClaimRequest;
@@ -51,6 +52,7 @@ public class ClaimService {
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
 	private final AuditService auditService;
+	private final ClaimDocumentService claimDocumentService;
 
 	@Transactional
 	public ClaimResponse submitClaim(ClaimRequest req, String email) {
@@ -76,19 +78,19 @@ public class ClaimService {
 					"Claims can only be raised on ACTIVE policies. Current status: " + policy.getStatus());
 		}
 
-		BigDecimal coverageAmount = policy.getPlan().getCoverageAmount();
+		// MOTOR policies are capped by the calculated IDV, not the plan's base coverage
+		BigDecimal coverageAmount = policy.getCalculatedIdv() != null ? policy.getCalculatedIdv()
+				: policy.getPlan().getCoverageAmount();
 		if (req.getClaimAmount().compareTo(coverageAmount) > 0) {
-			log.warn("Claim amount {} exceeds coverage {} for policyId={}", req.getClaimAmount(),
-					coverageAmount, req.getPolicyId());
-			throw new BusinessRuleException(
-					"Claim amount cannot exceed policy coverage amount of " + coverageAmount);
+			log.warn("Claim amount {} exceeds coverage {} for policyId={}", req.getClaimAmount(), coverageAmount,
+					req.getPolicyId());
+			throw new BusinessRuleException("Claim amount cannot exceed policy coverage amount of " + coverageAmount);
 		}
 
 		BigDecimal reservedClaimAmount = claimRepository.sumNonRejectedClaimAmountByPolicyId(policy.getId());
 		BigDecimal remainingCoverage = coverageAmount.subtract(reservedClaimAmount);
 		if (req.getClaimAmount().compareTo(remainingCoverage) > 0) {
-			log.warn(
-					"Claim amount {} exceeds remaining coverage {} for policyId={} (coverage={}, reserved={})",
+			log.warn("Claim amount {} exceeds remaining coverage {} for policyId={} (coverage={}, reserved={})",
 					req.getClaimAmount(), remainingCoverage, policy.getId(), coverageAmount, reservedClaimAmount);
 			throw new BusinessRuleException(
 					"Claim amount exceeds remaining policy coverage amount of " + remainingCoverage);
@@ -100,12 +102,6 @@ public class ClaimService {
 
 		Claim saved = claimRepository.save(claim);
 
-		List<ClaimDocument> docs = req.getDocuments().stream()
-				.map(d -> ClaimDocument.builder().claim(saved).documentName(d.getDocumentName())
-						.documentType(d.getDocumentType()).documentReference(d.getDocumentReference()).build())
-				.collect(Collectors.toList());
-		documentRepository.saveAll(docs);
-
 		recordHistory(saved, null, ClaimStatus.SUBMITTED, "Claim submitted by customer", user);
 		auditService.record(user, "CLAIM_SUBMITTED", "CLAIM", saved.getId(),
 				"Claim submitted: " + saved.getClaimNumber());
@@ -114,6 +110,25 @@ public class ClaimService {
 				req.getClaimAmount());
 
 		return mapToResponse(saved);
+	}
+
+	@Transactional
+	public ClaimResponse submitClaimWithDocuments(ClaimRequest req, List<MultipartFile> files,
+			List<String> documentNames, List<String> documentTypes, String email) {
+
+		User user = userRepository.findByEmail(email)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+		ClaimResponse response = submitClaim(req, email);
+
+		if (files != null && !files.isEmpty()) {
+			for (int i = 0; i < files.size(); i++) {
+				claimDocumentService.uploadDocument(response.getClaimId(), documentNames.get(i), documentTypes.get(i),
+						files.get(i), email);
+			}
+		}
+
+		return getClaimById(response.getClaimId(), email);
 	}
 
 	@Transactional
@@ -333,6 +348,8 @@ public class ClaimService {
 
 		return ClaimResponse.builder().claimId(c.getId()).claimNumber(c.getClaimNumber())
 				.policyId(c.getPolicy().getId()).policyNumber(c.getPolicy().getPolicyNumber())
+				.planName(c.getPolicy().getPlan().getPlanName())
+				.productType(c.getPolicy().getPlan().getProduct().getProductType().name())
 				.customerName(c.getPolicy().getCustomer().getUser().getFullName()).claimAmount(c.getClaimAmount())
 				.claimReason(c.getClaimReason()).incidentDate(c.getIncidentDate()).claimStatus(c.getClaimStatus())
 				.agentRemarks(c.getAgentRemarks()).adminRemarks(c.getAdminRemarks())

@@ -43,10 +43,6 @@ public class OtpVerification {
 	@Column(nullable = false)
 	private OtpChannel channel;
 
-	/**
-	 * EMAIL channel: locally generated 6-digit code, stored here. PHONE channel
-	 * (Twilio Verify): left null - Twilio holds the code server-side.
-	 */
 	@Column(name = "otp_code")
 	private String otpCode;
 

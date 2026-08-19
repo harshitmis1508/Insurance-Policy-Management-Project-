@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.harshit.monocept.dto.request.CustomerRequest;
 import com.harshit.monocept.dto.response.CustomerResponse;
@@ -25,7 +26,8 @@ public class CustomerService {
 
 	private final CustomerRepository customerRepository;
 	private final UserRepository userRepository;
-
+	
+	@Transactional
 	public CustomerResponse createProfile(CustomerRequest req, String email) {
 		log.info("Profile creation attempt for user: {}", email);
 

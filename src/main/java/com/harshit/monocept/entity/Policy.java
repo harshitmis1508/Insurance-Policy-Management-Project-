@@ -3,8 +3,10 @@ package com.harshit.monocept.entity;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import com.harshit.monocept.enums.PolicyStatus;
+import com.harshit.monocept.enums.PremiumFrequency;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,6 +18,9 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -68,8 +73,63 @@ public class Policy {
 
 	private LocalDate nextPremiumDueDate;
 
+	@Enumerated(EnumType.STRING)
+	private PremiumFrequency premiumFrequency;
+
+	@Column(precision = 15, scale = 2)
+	private BigDecimal installmentAmount;
+
+	private Integer totalInstallmentsDue;
+
+	private LocalDate lapsedAt;
+
+	private String vehicleRegistrationNumber;
+	private String vehicleMake;
+	private String vehicleModel;
+	private Integer vehicleManufactureYear;
+
 	private LocalDateTime createdAt;
 	private LocalDateTime updatedAt;
+
+	private BigDecimal calculatedIdv;
+	private Integer vehicleAgeAtPurchase;
+	private Integer depreciationPercentApplied;
+
+	@Builder.Default
+	private Integer ncbPercentage = 0;
+
+    // ================= HEALTH DISCLOSURES (optional, HEALTH product only) =================
+    private String healthCoverType; // INDIVIDUAL | FLOATER
+    private Integer healthInsuredAge; // INDIVIDUAL
+    private Integer healthAdultCount; // FLOATER
+    private Integer healthChildCount; // FLOATER
+    private Boolean healthHasPreExisting;
+
+    @ElementCollection
+    @CollectionTable(name = "policy_health_adult_ages", joinColumns = @JoinColumn(name = "policy_id"))
+    @OrderColumn(name = "idx")
+    @Column(name = "age")
+    private List<Integer> healthAdultAges;
+
+    @ElementCollection
+    @CollectionTable(name = "policy_health_child_ages", joinColumns = @JoinColumn(name = "policy_id"))
+    @OrderColumn(name = "idx")
+    @Column(name = "age")
+    private List<Integer> healthChildAges;
+
+    @ElementCollection
+    @CollectionTable(name = "policy_health_preexisting", joinColumns = @JoinColumn(name = "policy_id"))
+    @OrderColumn(name = "idx")
+    private List<HealthPreExistingEntry> healthPreExisting;
+
+    // ================= LIFE DISCLOSURES (optional, LIFE product only) =================
+    private java.time.LocalDate lifeDob;
+    private Boolean lifeSmoker;
+
+    @ElementCollection
+    @CollectionTable(name = "policy_life_nominees", joinColumns = @JoinColumn(name = "policy_id"))
+    @OrderColumn(name = "idx")
+    private java.util.List<LifeNomineeEntry> lifeNominees;
 
 	@PrePersist
 	protected void onCreate() {

@@ -2,6 +2,7 @@ package com.harshit.monocept.dto.request;
 
 import java.time.LocalDate;
 
+
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -27,7 +28,7 @@ public class CustomerRequest {
 
 		if (dateOfBirth == null) {
 			return true;
-			// @NotNull will handle null separately
+			
 		}
 
 		return !dateOfBirth.plusYears(18).isAfter(LocalDate.now());

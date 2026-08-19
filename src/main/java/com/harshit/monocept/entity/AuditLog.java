@@ -2,6 +2,7 @@ package com.harshit.monocept.entity;
 
 import java.time.LocalDateTime;
 
+
 import com.harshit.monocept.enums.Role;
 
 import jakarta.persistence.Column;
@@ -11,6 +12,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -20,7 +22,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "audit_logs")
+@Table(name = "audit_logs", indexes = { @Index(name = "idx_audit_logs_entity_type", columnList = "entityType"),
+		@Index(name = "idx_audit_logs_actor_user_id", columnList = "actorUserId"),
+		@Index(name = "idx_audit_logs_created_at", columnList = "createdAt") })
 @Getter
 @Setter
 @NoArgsConstructor
