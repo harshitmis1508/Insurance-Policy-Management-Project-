@@ -1,6 +1,8 @@
 package com.harshit.monocept.service;
 
 import org.springframework.security.authentication.AuthenticationManager;
+
+
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,6 +27,7 @@ import com.harshit.monocept.security.JwtUtil;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.harshit.monocept.security.TokenBlacklistService;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +39,7 @@ public class AuthService {
 	private final AuthenticationManager authenticationManager;
 	private final JwtUtil jwtUtil;
 	private final OtpService otpService;
+	private final TokenBlacklistService tokenBlacklistService;
 
 	@Transactional
 	public User register(RegisterRequest req) {
@@ -170,5 +174,14 @@ public class AuthService {
 
 		return LoginResponse.builder().token(token).tokenType("Bearer").email(user.getEmail())
 				.fullName(user.getFullName()).role(user.getRole()).expiresIn(jwtUtil.getExpirationTime()).build();
+	}
+
+	public void logout(String authHeader) {
+		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+			throw new BusinessRuleException("Invalid or missing token");
+		}
+		String token = authHeader.substring(7);
+		long remaining = jwtUtil.getRemainingExpiry(token);
+		tokenBlacklistService.blacklistToken(token, remaining);
 	}
 }
