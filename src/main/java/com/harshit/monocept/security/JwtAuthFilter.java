@@ -22,6 +22,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
 	private final JwtUtil jwtUtil;
 	private final UserDetailsService userDetailsService;
+	private final TokenBlacklistService tokenBlacklistService;
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -33,6 +34,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
 		if (authHeader != null && authHeader.startsWith("Bearer ")) {
 			token = authHeader.substring(7);
+
+			if (tokenBlacklistService.isBlacklisted(token)) {
+				filterChain.doFilter(request, response);
+				return;
+			}
+
 			try {
 				email = jwtUtil.getEmailFromToken(token);
 			} catch (Exception ignored) {
