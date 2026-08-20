@@ -17,6 +17,7 @@ import com.harshit.monocept.dto.response.ApiResponse;
 import com.harshit.monocept.dto.response.LoginResponse;
 import com.harshit.monocept.service.AuthService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -60,6 +61,13 @@ public class AuthController {
 		authService.forgotPassword(req);
 		return ResponseEntity.ok(ApiResponse.success("Password reset OTP sent via " + req.getOtpChannel(),
 				"OTP sent for: " + req.getEmail()));
+	}
+	
+	@PostMapping("/logout")
+	public ResponseEntity<ApiResponse<String>> logout(HttpServletRequest request) {
+		String authHeader = request.getHeader("Authorization");
+		authService.logout(authHeader);
+		return ResponseEntity.ok(ApiResponse.success("Logged out successfully", null));
 	}
 
 	@PostMapping("/reset-password")
