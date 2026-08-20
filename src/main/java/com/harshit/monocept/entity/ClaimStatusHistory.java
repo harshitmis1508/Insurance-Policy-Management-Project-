@@ -12,6 +12,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
@@ -23,7 +24,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "claim_status_history")
+@Table(name = "claim_status_history", indexes = {
+		@Index(name = "idx_claim_status_history_claim_id", columnList = "claim_id") })
 @Getter
 @Setter
 @NoArgsConstructor

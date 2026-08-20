@@ -8,6 +8,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
@@ -19,7 +20,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "claim_documents")
+@Table(name = "claim_documents", indexes = { @Index(name = "idx_claim_documents_claim_id", columnList = "claim_id") })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -42,7 +43,7 @@ public class ClaimDocument {
 	private String documentType;
 
 	@Column(nullable = false)
-	private String documentReference; 
+	private String documentReference;
 
 	@Column
 	private String cloudinaryPublicId;

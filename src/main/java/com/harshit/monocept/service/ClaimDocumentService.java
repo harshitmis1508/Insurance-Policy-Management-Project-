@@ -76,7 +76,7 @@ public class ClaimDocumentService {
 		return mapToResponse(saved);
 	}
 
-	// ✅ Get all documents for a claim
+	
 	public List<DocumentUploadResponse> getClaimDocuments(Long claimId, String email) {
 
 		Claim claim = claimRepository.findById(claimId)
@@ -85,7 +85,6 @@ public class ClaimDocumentService {
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		// Customer sirf apni claim ke documents dekhe
 		if (user.getRole().name().equals("CUSTOMER")) {
 			Customer customer = customerRepository.findByUserId(user.getId())
 					.orElseThrow(() -> new ResourceNotFoundException("Customer not found"));
@@ -97,7 +96,7 @@ public class ClaimDocumentService {
 		return documentRepository.findByClaimId(claimId).stream().map(this::mapToResponse).collect(Collectors.toList());
 	}
 
-	// ✅ Delete a document
+
 	@Transactional
 	public void deleteDocument(Long documentId, String email) {
 		log.info("Document delete: documentId={}, by={}", documentId, email);
@@ -105,12 +104,11 @@ public class ClaimDocumentService {
 		ClaimDocument document = documentRepository.findById(documentId)
 				.orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + documentId));
 
-		// APPROVED/REJECTED claim ka document delete nahi ho sakta
+	
 		ClaimStatus status = document.getClaim().getClaimStatus();
 		if (status == ClaimStatus.APPROVED || status == ClaimStatus.REJECTED)
 			throw new BusinessRuleException("Cannot delete documents from a " + status.name() + " claim");
 
-		// Customer sirf apne claim ka document delete kare
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
@@ -121,16 +119,11 @@ public class ClaimDocumentService {
 			if (!document.getClaim().getPolicy().getCustomer().getId().equals(customer.getId()))
 				throw new BusinessRuleException("You can only delete your own documents");
 		}
-
-		// Cloudinary se delete karo
 		cloudinaryService.deleteFile(document.getCloudinaryPublicId());
-
-		// Database se delete karo
 		documentRepository.delete(document);
 		log.info("Document deleted: id={}", documentId);
 	}
 
-	// Helper: readable file size
 	private String getReadableSize(Long bytes) {
 		if (bytes == null)
 			return "Unknown";
